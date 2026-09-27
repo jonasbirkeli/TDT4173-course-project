@@ -2,3 +2,4 @@ kagglehub
 python-dotenv
 ipywidgets
 pandas
+matplotlib
