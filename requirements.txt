@@ -3,3 +3,4 @@ python-dotenv
 ipywidgets
 pandas
 matplotlib
+plotly
