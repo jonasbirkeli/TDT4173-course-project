@@ -1,2 +1,10 @@
 .env
 /data
+
+# Downloaded task files
+/Dataset_definitions_and_explanation.pdf
+/ML_Task_TDT4173.pdf
+/kaggle_metric.py
+/prediction_mapping.csv
+/sample_submission.csv
+/schedule_visualization.ipynb
