@@ -36,9 +36,33 @@ weekly context. All required code is inside the notebook.
    `outputs/catboost/<run>/catboost_submission.csv` in the template's exact order.
 
 Each training run records parameters, input hashes, versions, predictions, metrics,
-feature importance, and timing in a separate output directory. The initial
-hyperparameters have not been tuned. Training and predictive performance have not
-been verified by the assistant; the user owns installation and training.
+feature importance, and timing in a separate output directory. The user completed
+the original validation run in 21.1 minutes (micro AUC 0.946865 on 2020 and 0.976947
+on 2021) and the original submission run in 12.0 minutes. These are observations
+for the original setup, not measurements for subsequent experiments. The user owns
+installation and training.
+
+### Improvement experiments
+
+Use the `EXPERIMENT` setting to compare three presets on the same development folds:
+
+| Preset | Features | Early-stopping metric |
+|---|---|---|
+| `baseline_auc` | Original 193 features | Per-generator AUC |
+| `probability_logloss` (default) | Original 193 features | Logloss |
+| `upstream_logloss` | 224 features including upstream reservoirs, initial head proxies, and price windows | Logloss |
+
+First run `check`, then run `validate` yourself for `probability_logloss`. Compare
+both years against the original run in the notebook's final comparison table.
+Then test `upstream_logloss` to isolate the effect of the extra features. Neither
+experimental preset has been trained or proven to improve scores yet. Micro AUC
+remains the selection objective; Logloss and Brier are additional diagnostics.
+
+`SELECTED_CONFIG` has been reset: paste the dictionary from the experiment you
+choose after validation. `EXPERIMENT` must match that dictionary in `holdout` and
+`submit` modes. The previous configuration remains available as `REFERENCE_CONFIG`;
+use it with `EXPERIMENT = "baseline_auc"` to reproduce the original approach.
+Existing submissions and model artifacts are preserved.
 
 Run the notebook from this directory with the supplied `data/`,
 `prediction_mapping.csv`, and `sample_submission.csv` present. These resources are

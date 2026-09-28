@@ -137,7 +137,7 @@ Investigate two stronger, distinct model families. Neither candidate has demonst
 ### Development files
 
 - `predict.py`: deleted by the user; historical baseline only, not a current dependency.
-- `catboost.ipynb`: self-contained implementation with 14 sequential generator-specific CatBoost classifiers, timestamp-aligned features, chronological validation, interpretation, and verified submission mapping. Training has not been run.
+- `catboost.ipynb`: self-contained implementation with 14 sequential generator-specific CatBoost classifiers, timestamp-aligned features, chronological validation, interpretation, and verified submission mapping. The user has trained the original setup; improvement presets are untrained.
 - `sequence_model.ipynb`: neural-model scaffold with the same setup and split; sequence construction and modeling remain TODO.
 - `report.ipynb`: English report outline covering EDA, experiments, comparisons, interpretation, and reproducibility; analysis remains TODO.
 - Shared Python helpers are acceptable during development. Final short notebooks must inline all required code and be independently runnable.
@@ -150,12 +150,20 @@ Investigate two stronger, distinct model families. Neither candidate has demonst
 - Historical baseline output was `outputs/submission.csv`; do not treat it as output from the new CatBoost model.
 - CatBoost evaluation uses the same scikit-learn micro ROC-AUC call as the supplied metric, inlined to avoid dependence on the ignored `kaggle_metric.py`.
 - `schedule_visualization.ipynb` was corrected to read `data/kernel/Unit_commitment_decisions.csv` instead of the nonexistent `Generator_schedules_2015_2023.csv`.
-- `requirements.txt` includes the original packages plus CatBoost, scikit-learn, and PyYAML. The user will install them. At implementation-time verification, CatBoost and scikit-learn were absent from `.venv`; PyYAML was available.
-- CatBoost implementation is complete but its fit/predict API paths have not been executed. The neural candidate remains a scaffold. Do not claim measured training times or scores for either.
+- `requirements.txt` includes the original packages plus CatBoost, scikit-learn, and PyYAML. The user installed the dependencies. Subsequent environment inspection found CatBoost 1.2.10 and scikit-learn 1.9.1. Do not install or upgrade dependencies for the user.
+- The user completed the original CatBoost validation and submission runs. The neural candidate remains a scaffold. New CatBoost improvement presets have not been trained; do not attribute the original run's scores or times to them.
+- Original validation run: `outputs/catboost/20260928T151057_267694Z_validate`, completed in 1266.74 seconds. Micro ROC-AUC: 0.9468646363 (2020) and 0.9769469054 (2021).
+- Original submission run: `outputs/catboost/20260928T153454_952823Z_submit`, completed in 721.99 seconds. Its `catboost_submission.csv` was verified to match the template with valid probabilities. No Kaggle score is known.
+- A diagnostic re-evaluation of the existing validation predictions produced mean per-generator Logloss/Brier of 0.294538/0.093357 for 2020 and 0.195099/0.057779 for 2021. This involved no training. Diagnostic CSVs are under `outputs/catboost/baseline_fold_*_probability_diagnostics.csv`.
 - The CatBoost notebook's `check` mode has run successfully without installing packages or training. Its default mode is `check`; other modes are `smoke`, `validate`, `holdout`, and `submit`.
-- CatBoost constructs 193 float32 features per generator/hour. It uses immediate intake reservoirs from YAML (including both Songa intakes), plus individual global reservoir features. Water-availability aggregates are proxies, not a hydraulic simulator.
+- CatBoost has three controlled `EXPERIMENT` presets: `baseline_auc` uses the original 193 features and AUC stopping; `probability_logloss` uses the same 193 features with Logloss stopping; `upstream_logloss` uses 224 features with Logloss stopping. The current default is `probability_logloss`, in non-training `check` mode.
+- The v2 features include all connected upstream reservoirs, capacity-weighted aggregates, initial levels from supplied volume-level curves, a gross-head proxy, and in-horizon price-window summaries. Haukeli's upstream set includes Langeidvatn as well as its immediate intake Vatjern. The aggregates are descriptors, not a hydraulic simulator or realized future storage.
+- The rationale for Logloss stopping is that per-generator AUC ignores probability scales across generators, which affect global micro AUC. AUC-based stopping retained only 6 trees for Tokke G1 in the 2020 fold; its validation Logloss was substantially better later. This is evidence to test another stopping criterion, not proof that Logloss improves Kaggle performance.
+- All three presets' data checks pass. Original v1 features were compared exactly against the previous implementation; v2 rolling-window boundaries, topology, and invariance to future realized storage/labels were checked. Evaluation matches the supplied Kaggle metric on saved predictions. No new models were fitted.
 - CatBoost uses two default development folds (2020 and 2021), purging overlapping horizons at each boundary. 2022 is reserved for a frozen-configuration evaluation, without early stopping. The baseline has already been evaluated on 2022, so do not describe it as wholly unseen across project history.
-- A successful `validate` run prints `SELECTED_CONFIG`, containing parameters, feature version/signature, seed, and median best tree counts. The user copies this dictionary into the configuration cell before `holdout` or `submit`.
+- A successful `validate` run prints `SELECTED_CONFIG`, containing experiment name, parameters, feature version/signature, seed, and median best tree counts. The user copies this dictionary into the configuration cell before `holdout` or `submit`; the experiment must match the frozen configuration.
+- The old selected dictionary is retained as `REFERENCE_CONFIG`. Current `SELECTED_CONFIG` is empty pending new validation. To reproduce the old approach use `EXPERIMENT = "baseline_auc"` and `SELECTED_CONFIG = REFERENCE_CONFIG`. A pre-edit notebook backup is stored under `outputs/catboost/reference_notebook_before_improvements.ipynb`; it is not a runtime dependency.
+- Notebook section 8 compares completed development runs only; it does not choose presets using holdout/test scores. Existing outputs are preserved and new run directory names include the experiment name.
 - Each training-mode run writes a new directory under `outputs/catboost/` with metadata, input hashes, package versions, models, metrics, interpretation, and timing. Only `submit` exports `catboost_submission.csv`, after refitting all labeled cases. No saved models are needed for reproduction.
 - The sequence scaffold still has only the 2021 development fold; align it with the final CatBoost comparison protocol when implementing it.
 - A `.venv` exists; Windows PowerShell can run it directly with `.\.venv\Scripts\python.exe`. `uv` has been found at `C:/Users/fredr/.local/bin/uv.exe`.
@@ -163,8 +171,8 @@ Investigate two stronger, distinct model families. Neither candidate has demonst
 
 ## Immediate next steps when the user proceeds
 
-1. Let the user install requirements and run `check`, then `smoke`, in `catboost.ipynb`.
-2. Inspect their results/errors and measured runtime before recommending full development runs; do not run training for them.
+1. Let the user run `check` and `validate` for `probability_logloss`, then optionally `upstream_logloss`, in `catboost.ipynb`.
+2. Inspect their results/errors and compare both development years against the original setup; do not run training for them or claim an improvement before measurement.
 3. Use the user's validation results to investigate features, hyperparameters, and any benefit from LightGBM/XGBoost alternatives or blending.
 4. Develop the neural sequence candidate and compare on the same folds when requested.
 5. Record interpretation, ablations, and runtime; later prepare and verify the two standalone submission notebooks.
