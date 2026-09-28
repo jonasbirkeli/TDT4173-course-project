@@ -4,3 +4,6 @@ ipywidgets
 pandas
 matplotlib
 plotly
+numpy
+ipykernel
+nbformat
