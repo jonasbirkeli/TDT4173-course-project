@@ -1,5 +1,6 @@
 .env
 /data
+/outputs/
 
 # Downloaded task files
 /Dataset_definitions_and_explanation.pdf
@@ -8,3 +9,4 @@
 /prediction_mapping.csv
 /sample_submission.csv
 /schedule_visualization.ipynb
+TDT4173_Project_Submission_and_Grading.pdf
