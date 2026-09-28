@@ -7,3 +7,6 @@ plotly
 numpy
 ipykernel
 nbformat
+catboost
+scikit-learn
+PyYAML

@@ -7,8 +7,8 @@
 - Explain modeling choices and distinguish measured results from hypotheses.
 - The user is aiming for an A and prioritizes predictive quality and rigorous experiments. Do not select a model solely because it is quick to implement, or assume a larger model is better.
 - ROC-AUC above 0.995 is the user's aspirational target, not an official grade threshold or a demonstrated achievable result. Never promise this score.
-- Do not launch long training runs without establishing the available compute and runtime budget. Those details are not yet settled.
-- Current request: record this context before starting the new models. Do not treat this file as authorization to immediately start training them.
+- The user installs dependencies and runs training themselves. Add required packages to `requirements.txt`, but do not install them or start any model training unless the user explicitly changes this instruction.
+- Implement and test data processing, code structure, validation, and output mapping without training. Clearly state that model fitting, runtime, and predictive performance remain unverified until the user runs them.
 
 ## Task and authoritative local references
 
@@ -109,7 +109,7 @@ The grading PDF, rather than a fixed AUC target, is authoritative:
 
 ## Agreed modeling plan
 
-Retain the simple baseline and investigate two stronger, distinct model families. Neither candidate has demonstrated superiority on this dataset yet.
+Investigate two stronger, distinct model families. Neither candidate has demonstrated superiority on this dataset yet. The user deleted `predict.py`; do not recreate it. A fold-matched seasonal reference is now inlined in the CatBoost notebook.
 
 ### Candidate 1: CatBoost
 
@@ -134,33 +134,37 @@ Retain the simple baseline and investigate two stronger, distinct model families
 - Consider blending only if held-out predictions show complementary errors and reproducible improvements within the runtime limit.
 - Preserve an experiment log with parameters, features, seeds, fold definitions, scores, runtime, and memory observations.
 
-### Planned development files
+### Development files
 
-- `predict.py`: retain the seasonal-frequency baseline.
-- `catboost.ipynb`: planned CatBoost development notebook.
-- `sequence_model.ipynb`: planned neural-model development notebook.
-- `report.ipynb`: planned EDA, experiments, comparisons, and interpretation.
+- `predict.py`: deleted by the user; historical baseline only, not a current dependency.
+- `catboost.ipynb`: self-contained implementation with 14 sequential generator-specific CatBoost classifiers, timestamp-aligned features, chronological validation, interpretation, and verified submission mapping. Training has not been run.
+- `sequence_model.ipynb`: neural-model scaffold with the same setup and split; sequence construction and modeling remain TODO.
+- `report.ipynb`: English report outline covering EDA, experiments, comparisons, interpretation, and reproducibility; analysis remains TODO.
 - Shared Python helpers are acceptable during development. Final short notebooks must inline all required code and be independently runnable.
 
 ## Current implementation status
 
-- `predict.py` implements a seasonal-frequency lookup baseline. It averages each generator/horizon-hour target by the case's start month. All cases starting in the same month receive identical predictions.
-- It does not yet use prices, inflows, volumes, water values, constraints, or topology.
-- Baseline validation uses 2551 training cases whose horizons end before or at 2022-01-01 and 365 validation cases starting in 2022.
+- The deleted `predict.py` implemented a seasonal-frequency lookup baseline, averaging each generator/horizon-hour target by the case's start month. It did not use operating inputs.
+- Historical baseline validation used 2551 training cases whose horizons ended before or at 2022-01-01 and 365 validation cases starting in 2022.
 - Measured baseline validation micro ROC-AUC: 0.564993. This is not a Kaggle/private leaderboard score.
-- It refits on all labeled cases and writes `outputs/submission.csv`; output shape, IDs, column order, and probability range have been checked.
-- The baseline has a local rank-based micro-AUC implementation. Use the supplied metric or a verified equivalent when extending evaluation.
+- Historical baseline output was `outputs/submission.csv`; do not treat it as output from the new CatBoost model.
+- CatBoost evaluation uses the same scikit-learn micro ROC-AUC call as the supplied metric, inlined to avoid dependence on the ignored `kaggle_metric.py`.
 - `schedule_visualization.ipynb` was corrected to read `data/kernel/Unit_commitment_decisions.csv` instead of the nonexistent `Generator_schedules_2015_2023.csv`.
-- `requirements.txt` includes kagglehub, python-dotenv, ipywidgets, pandas, matplotlib, plotly, numpy, ipykernel, and nbformat.
-- An attempted installation of CatBoost, scikit-learn, and PyYAML was interrupted. Do not assume installation succeeded; inspect the environment first. These packages are not yet listed in requirements.
-- Neither the CatBoost nor neural candidate has been implemented or benchmarked yet. Do not claim a training-time estimate or score for them.
+- `requirements.txt` includes the original packages plus CatBoost, scikit-learn, and PyYAML. The user will install them. At implementation-time verification, CatBoost and scikit-learn were absent from `.venv`; PyYAML was available.
+- CatBoost implementation is complete but its fit/predict API paths have not been executed. The neural candidate remains a scaffold. Do not claim measured training times or scores for either.
+- The CatBoost notebook's `check` mode has run successfully without installing packages or training. Its default mode is `check`; other modes are `smoke`, `validate`, `holdout`, and `submit`.
+- CatBoost constructs 193 float32 features per generator/hour. It uses immediate intake reservoirs from YAML (including both Songa intakes), plus individual global reservoir features. Water-availability aggregates are proxies, not a hydraulic simulator.
+- CatBoost uses two default development folds (2020 and 2021), purging overlapping horizons at each boundary. 2022 is reserved for a frozen-configuration evaluation, without early stopping. The baseline has already been evaluated on 2022, so do not describe it as wholly unseen across project history.
+- A successful `validate` run prints `SELECTED_CONFIG`, containing parameters, feature version/signature, seed, and median best tree counts. The user copies this dictionary into the configuration cell before `holdout` or `submit`.
+- Each training-mode run writes a new directory under `outputs/catboost/` with metadata, input hashes, package versions, models, metrics, interpretation, and timing. Only `submit` exports `catboost_submission.csv`, after refitting all labeled cases. No saved models are needed for reproduction.
+- The sequence scaffold still has only the 2021 development fold; align it with the final CatBoost comparison protocol when implementing it.
 - A `.venv` exists; Windows PowerShell can run it directly with `.\.venv\Scripts\python.exe`. `uv` has been found at `C:/Users/fredr/.local/bin/uv.exe`.
 - `.gitignore` excludes local data, outputs, `.env`, and several downloaded task resources. Do not assume those resources will be available from a fresh Git checkout.
 
 ## Immediate next steps when the user proceeds
 
-1. Confirm available hardware and experiment runtime budget; inspect installed dependencies.
-2. Build and verify the shared input alignment and chronological validation pipeline.
-3. Develop and benchmark CatBoost with actual input features while retaining the baseline.
-4. Develop the neural sequence candidate and compare on the same folds.
+1. Let the user install requirements and run `check`, then `smoke`, in `catboost.ipynb`.
+2. Inspect their results/errors and measured runtime before recommending full development runs; do not run training for them.
+3. Use the user's validation results to investigate features, hyperparameters, and any benefit from LightGBM/XGBoost alternatives or blending.
+4. Develop the neural sequence candidate and compare on the same folds when requested.
 5. Record interpretation, ablations, and runtime; later prepare and verify the two standalone submission notebooks.
