@@ -4,3 +4,5 @@ ipywidgets
 pandas
 matplotlib
 plotly
+xgboost
+scikit-learn
