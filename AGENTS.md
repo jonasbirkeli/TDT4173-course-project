@@ -98,6 +98,21 @@ margin-remaining) and its RUN_MODE/frozen-config reproducibility pattern
 are noted above; the CatBoost line also satisfies the "more than one
 predictor type" grading requirement alongside our archived GRU.
 
+## Task-structure finding: overlapping cases (measured 2026-10-09)
+
+Cases are DAILY, each with a 168-hour horizon, so consecutive cases
+overlap by 167 hours and every physical hour appears in up to 7 cases.
+Measured on all 2922 labeled cases: the labels for the same physical hour
+DISAGREE across the cases covering it — per-generator mismatch rate 4.9%
+(Byrte) to 18.7% (Tokke_G2); 12-19% for the Tokke/Vinje units. The
+optimizer re-solves each case independently, so the commitment for the
+same physical hour genuinely depends on the case's horizon (the
+hours_remaining feature carries this). Consequence: pooling/averaging
+predictions across overlapping cases for the same physical hour is WRONG
+and was dropped without further work. Also explains why the in-sample
+ceiling is 0.9985 and not 1.0: the mapping is case-relative, not
+physical-hour-absolute.
+
 ## Error analysis findings (`error_analysis.ipynb`, val 2022)
 
 - Haukeli_G1 (XGB 0.9352) and Lio_G1 (XGB 0.9225) are the hard units. Both
@@ -163,9 +178,15 @@ exists to validate honestly; val numbers for it would be optimistic.
 ## Environment and tooling gotchas
 
 - venv `.venv` (Python 3.14). Notebooks run under Jupyter with the `.venv`
-  kernel. **This assistant cannot execute notebooks or python** — author
-  notebooks as raw JSON (`write_file` for new files, `sed`/`jq` for edits,
-  validate with `jq empty`), the user runs them and pastes output.
+  kernel. **UPDATE (2026-10-09): `.venv/bin/python` works from the
+  assistant's shell** (pandas 3.0.6, xgboost 3.4.1, lightgbm 4.7,
+  sklearn 1.9.1, torch 2.14.1; catboost NOT installed). The assistant
+  can now run measurements directly: quick checks via bash (300s limit),
+  longer fits via background processes (`tools.process.start` +
+  `.venv/bin/python script.py`, scripts authored in /tmp). Notebooks are
+  still authored as raw JSON for the user's Jupyter workflow and for
+  delivery; scripts are for fast measurement loops. torch/MPS still must
+  not share a kernel/process with xgboost.
 - **torch/MPS and xgboost must not share a kernel** on this Mac: after heavy
   MPS use, xgboost fits in the same process hang for hours or crash the
   kernel (happened twice in `gru_sequence.ipynb`). Keep them in separate
