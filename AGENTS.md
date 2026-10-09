@@ -106,6 +106,21 @@ train_tail stop): micro 0.9797. XGB+LGBM mean-prob ensemble: 0.9805
 seed-averaging and GRU results. Measured directly by the assistant via
 `.venv/bin/python` background run (XGB reproduced 0.9802 exactly).
 
+## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
+
+Ported fredrik's never-trained `hydro-context-v2` group (upstream-catchment
+aggregates over the full topology above each plant, gross-head proxy from
+vol_head curves minus plant outlet_line, margin-remaining suffix sums) to
+our clean protocol. Baseline 0.9803 (includes 17 per-reservoir level-curve
+columns, +0.0001 vs true baseline); +v2 0.9811 — delta +0.0009 over the
+true 0.9802, below the +0.0015 bar -> NOT adopted; feature search closed a
+third time. Per-generator: Haukeli +0.0065, Vesle Kjela +0.0066, Songa
++0.0025, Tokke_G4 +0.0021, but Lio -0.0034 — the same opposite-direction
+pattern as volpath (Haukeli gains, Lio pays, micro nets to noise). Hard
+units respond to water-state context but fail for different reasons;
+no single feature group fixes both. Run by the assistant via background
+process.
+
 ## Task-structure finding: overlapping cases (measured 2026-10-09)
 
 Cases are DAILY, each with a 168-hour horizon, so consecutive cases
