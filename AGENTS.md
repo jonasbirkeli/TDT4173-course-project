@@ -129,8 +129,11 @@ Consequences:
   writing `../output4.csv`: full-train, v2 features + lambda10. User
   runs it, submits; selection decision pending its public score.
 - If output4 becomes a selection, short notebook 2 must reproduce it.
-- A parallel val test of v2+lambda10+volpath+cyclic is running (adopt
-  only if it beats 0.9823 by >0.0015).
+- Parallel val test of v2+lambda10+volpath+cyclic measured 0.9822 vs
+  0.9823 — no gain, NOT adopted. Third occurrence of the hard-unit
+  see-saw: Lio +0.0093 from the volume trajectory, but Haukeli -0.0029
+  and Songa -0.0014; nets to zero. The adopted config is final for this
+  search.
 
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
