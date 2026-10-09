@@ -181,8 +181,10 @@ the superseded-but-recorded notebooks into `archive/` (see below).
   (report material).
 - `kaggle_metric.py` — local metric implementation.
 - `output.csv` — scored Kaggle submission 1 (0.98722).
-- `output2.csv` — Kaggle submission 2 (volpath+cyclic variant, generated,
-  not yet scored).
+- `output2.csv` — Kaggle submission 2 (volpath+cyclic variant), scored
+  **0.98711** public — slightly below output.csv (0.98722), as expected for
+  an equal-within-noise variant. Both stay selected: the better of the two
+  counts on the private leaderboard.
 
 ## Archive folder `archive/`
 
@@ -292,10 +294,11 @@ Archived (moved to `archive/`, see above): `xgboost_stop_heldout`,
   improvement claim.
 - `notebooks/kaggle_submission.ipynb` — full-train XGBoost, test-case
   predictions, writes `../output.csv` (scored 0.98722). Extended with a
-  second-prediction section (not yet executed): the volpath+cyclic variant
-  trained on all 2922 cases, writing `../output2.csv` as the second Kaggle
-  selection (equal-within-noise val 0.9806; diversification pick, the
-  better of the two selected counts on the private leaderboard). The
+  second-prediction section (executed): the volpath+cyclic variant trained
+  on all 2922 cases, writing `../output2.csv` as the second Kaggle
+  selection (equal-within-noise val 0.9806; diversification pick, scored
+  0.98711 public vs 0.98722 for output.csv — the better of the two
+  selected counts on the private leaderboard). The
   fit-predict cell no longer deletes the base matrices (the variant
   section reuses them). Executed: in-sample 2022
   fit is ~1.0 per generator (Vinje_G1 0.9999, rest 1.0) — at 61k rows the
