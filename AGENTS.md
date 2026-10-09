@@ -98,6 +98,14 @@ margin-remaining) and its RUN_MODE/frozen-config reproducibility pattern
 are noted above; the CatBoost line also satisfies the "more than one
 predictor type" grading requirement alongside our archived GRU.
 
+## XGB+LGBM ensemble (measured 2026-10-09, clean protocol, val 2022)
+
+LGBM matched-capacity (400 trees, lr 0.05, 127 leaves, sub/col 0.8,
+train_tail stop): micro 0.9797. XGB+LGBM mean-prob ensemble: 0.9805
+(+0.0003 = noise). GBDT+GBDT ensembling is dead, consistent with the
+seed-averaging and GRU results. Measured directly by the assistant via
+`.venv/bin/python` background run (XGB reproduced 0.9802 exactly).
+
 ## Task-structure finding: overlapping cases (measured 2026-10-09)
 
 Cases are DAILY, each with a 168-hour horizon, so consecutive cases
