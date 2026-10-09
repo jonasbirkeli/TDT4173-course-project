@@ -195,6 +195,11 @@ the superseded-but-recorded notebooks into `archive/` (see below).
   **0.98711** public — slightly below output.csv (0.98722), as expected for
   an equal-within-noise variant. Both stay selected: the better of the two
   counts on the private leaderboard.
+- `output3.csv` — third candidate (baseline features, `reg_lambda=10`,
+  the best single hyperparameter screen delta at +0.0010 val, within
+  noise). Authored section in `kaggle_submission.ipynb` (variant2 cells),
+  NOT yet executed. Plan: submit, and if its public score beats output2's
+  0.98711, select it as the second prediction instead of output2.
 
 ## Archive folder `archive/`
 
@@ -326,7 +331,11 @@ Archived (moved to `archive/`, see above): `xgboost_stop_heldout`,
   on all 2922 cases, writing `../output2.csv` as the second Kaggle
   selection (equal-within-noise val 0.9806; diversification pick, scored
   0.98711 public vs 0.98722 for output.csv — the better of the two
-  selected counts on the private leaderboard). The
+  selected counts on the private leaderboard). A third candidate section
+  (variant2 cells, NOT yet executed) writes `../output3.csv`: baseline
+  features with `reg_lambda=10` (best single hyperparameter-screen delta,
+  +0.0010 val, within noise) — submit and swap it in as the second
+  selection only if it beats 0.98711 public. The
   fit-predict cell no longer deletes the base matrices (the variant
   section reuses them). Executed: in-sample 2022
   fit is ~1.0 per generator (Vinje_G1 0.9999, rest 1.0) — at 61k rows the
