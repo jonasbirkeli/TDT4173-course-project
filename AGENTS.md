@@ -302,6 +302,16 @@ Archived (moved to `archive/`, see above): `xgboost_stop_heldout`,
   (the format allows two; the better counts on the private leaderboard) —
   equal-within-noise val performance means a free second draw, not an
   improvement claim.
+- `notebooks/xgboost_hyperparameters.ipynb` — one-factor-at-a-time screen
+  of the five never-swept XGBoost hyperparameters (max_depth 5/6/8/9,
+  min_child_weight 3/10, reg_lambda 0.1/10, subsample 0.7/0.9,
+  colsample_bytree 0.7/0.9) on the 193-feature baseline under the clean
+  protocol (12 variants + baseline refit, then an auto-combined
+  configuration of the winning factors). Authored, NOT yet executed.
+  Pre-registered adoption bar: a factor counts only if its best variant
+  beats 0.9802 by >0.0015 (seed-noise range 0.0014), and the combo must
+  beat 0.9802 by the same margin. Answers the "was any parameter
+  optimization done?" report question either way.
 - `notebooks/kaggle_submission.ipynb` — full-train XGBoost, test-case
   predictions, writes `../output.csv` (scored 0.98722). Extended with a
   second-prediction section (executed): the volpath+cyclic variant trained
