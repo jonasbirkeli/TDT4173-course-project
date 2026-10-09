@@ -170,30 +170,52 @@ exists to validate honestly; val numbers for it would be optimistic.
 
 ## Notebook inventory (repo root)
 
-Cleanup done (user-approved): deleted `xgboost.ipynb` (old pooled 0.8586),
-`ensemble.ipynb` (old weak 0.9031), `rolling_origin.ipynb`,
+Cleanup history: first pass (user-approved) deleted `xgboost.ipynb` (old
+pooled 0.8586), `ensemble.ipynb` (old weak 0.9031), `rolling_origin.ipynb`,
 `resampling_eda.ipynb`, `schedule_visualization.ipynb`, `test.ipynb`,
-`gru_sequence.ipynb` + `gru_val_preds.npz` (GRU dropped; the Haukeli/Lio
-hybrid would need a full retrain anyway), and `__pycache__`. Their measured
-results live in this file. Most were untracked in git — deletion was
-permanent.
+`gru_sequence.ipynb` + `gru_val_preds.npz`, and `loyo_cv.ipynb` (its
+measured result, pooled OOF 0.9758, is recorded here). Second pass moved
+the superseded-but-recorded notebooks into `archive/` (see below).
 
-- `per_generator_xgboost.ipynb` — current best pipeline, executed, with
-  experiment writeup and takeaways.
-- `feature_experiments.ipynb` — executed; the closed feature search grid.
-- `loyo_cv.ipynb` — executed; pooled OOF 0.9758; saves `oof_predictions.npz`.
-- `error_analysis.ipynb` — executed; Haukeli/Lio regime-error breakdown.
-- `insample.ipynb` — ceiling 0.9985.
+- `error_analysis.ipynb` — executed; Haukeli/Lio regime-error breakdown
+  (report material).
 - `kaggle_metric.py` — local metric implementation.
-- `output.csv` — the scored Kaggle submission (0.98722).
+- `output.csv` — scored Kaggle submission 1 (0.98722).
+- `output2.csv` — Kaggle submission 2 (volpath+cyclic variant, generated,
+  not yet scored).
+
+## Archive folder `archive/`
+
+Superseded notebooks, kept for their executed outputs (the record of
+negative results for the report). Their internal data paths are NOT fixed
+for the new location — they are read-only records, not runnable from
+`archive/`.
+
+- `archive/per_generator_xgboost.ipynb` — the original best-pipeline
+  notebook (duplicated by `notebooks/xgboost_baseline.ipynb`).
+- `archive/feature_experiments.ipynb` — the first closed feature search.
+- `archive/insample.ipynb` — in-sample ceiling 0.9985 (all 2922 cases).
+- `archive/xgboost_experiments.ipynb` — seeds / lr-trees / recency screen
+  (all noise, nothing adopted).
+- `archive/xgboost_stop_heldout.ipynb` — held-out stop experiment
+  (0.9588 vs 0.9802; train_tail stands).
+- `archive/gru_xgb_ensemble.ipynb` — GRU-vs-XGB ensemble comparison
+  (GRU dropped).
+- `archive/oof_predictions.npz` — LOYO OOF predictions (pooled 0.9758).
 
 ## Notebook folder `notebooks/`
+
+Archived (moved to `archive/`, see above): `xgboost_stop_heldout`,
+`xgboost_experiments`, `gru_xgb_ensemble`.
 
 - `notebooks/eda_unit_commitment.ipynb` — label EDA (ON-rates per
   generator/year/hour/month, state stickiness and all-on/all-off weeks,
   ON-rate per price decile, solve-time stats, in-sample 2022 ceiling with
   the exact per-generator pipeline). Data paths are `../data/...`. Follows
-  the markdown-documents / python-answers style.
+  the markdown-documents / python-answers style. Section 1b added (not yet
+  executed): ON-rate by day of year (15-day smoothed) per generator — the
+  annual cycle motivating the sin/cos day-of-year encoding (the daily
+  cycle is already section 1's hour-of-day panel).
 - `notebooks/xgboost_baseline.ipynb` — the per-generator XGBoost baseline
   (same 193 features, same hyperparameters, train_tail stop, val 2022)
   reproduced self-contained in this folder as the clean starting point for
@@ -205,46 +227,6 @@ permanent.
   (also the best unit, 0.9966) — confirms the stop set is effectively
   inert and n_estimators=400 is the operating point. Micro is dragged by
   Haukeli (0.9352) and Lio (0.9225); the other twelve sit at 0.97-0.996.
-- `notebooks/xgboost_stop_heldout.ipynb` — protocol experiment: the stop
-  window (last 90 days of 2021, same window as baseline) is removed from the
-  training pool so the early-stopping signal is out-of-sample; full 2022
-  val, everything else identical to the baseline. Comparison target:
-  0.9802. If within noise, the train_tail protocol stands; if it wins, it
-  becomes the protocol (and is the structure recurrent models require).
-  Executed: **0.9588** vs baseline 0.9802 (-0.021) — clearly worse.
-  Mechanism confirmed by tree counts: all models stopped far below the
-  400 cap (Vinje_G1 5 trees, Tokke_G4 20, Vesle Kjela 21, Vinje_G3 37;
-  only Byrte 216 / Hogga 244 kept substantial trees), and the losses
-  concentrate on the earliest-stopped, hardest units: Lio 0.9225 ->
-  0.8578, Haukeli 0.9352 -> 0.9055, Vinje_G1 0.9835 -> 0.9704. The
-  out-of-sample stop signal on a single-season window peaks early and
-  patience fires on noise; the baseline's in-sample stop set is
-  effectively an inert "run to 400 trees" rule, and 400 is a good
-  operating point.
-  Decision: train_tail stands. Honest early stopping on a single-season
-  90-day window selects a tree count that is wrong for the rest of the
-  year. Note this does NOT invalidate the GRU exception: a recurrent net
-  must still hold its stop days out of its own training pool (it
-  memorizes them otherwise); for XGBoost the in-sample stop set is
-  effectively inert and harmless.
-- `notebooks/xgboost_experiments.ipynb` — cheap val-2022 screen of the three
-  planned model experiments under the unchanged baseline protocol:
-  (1) seed averaging, 5 seeds, mean-prob and mean-rank ensembles;
-  (2) lr 0.03 with 1000 and 1500 trees; (3) recency weighting, per-case
-  weights decay**(2021-year) for decay 0.9 and 0.75. Executed — all within
-  noise, nothing adopted: single seeds 0.9790/0.9802/0.9804/0.9804/0.9790
-  (noise floor: range 0.0014), seed mean-prob ensemble 0.9802, lr 0.03 at
-  1000/1500 trees 0.9803/0.9804, recency decay 0.9/0.75 0.9804/0.9790.
-  Baseline config stands (lr 0.05, 400 trees, seed 0, uniform weights).
-  Lessons: seed averaging gains nothing (seeds too correlated; helped
-  Haukeli 0.9352 -> 0.9404 individually, micro unmoved); rank ensembles are
-  the wrong tool for the pooled metric, now measured twice (seed rank
-  ensemble 0.9492, GRU rank ensemble 0.9556 — per-generator rank
-  normalization destroys between-generator level information); strong
-  recency weighting hurts (-0.0012), mild is neutral.
-- `notebooks/gru_xgb_ensemble.ipynb` — the GRU-vs-XGB ensemble comparison,
-  isolated from torch. Executed: mean 0.9809, rank 0.9556 vs XGB 0.9802;
-  GRU dropped (see resolved question).
 - `notebooks/feature_screening.ipynb` — feature-screening notebook for the
   report story. Executed (one bug fixed in the final cell: the per-generator
   top-10 table passed None as the column list; now returns the top-10
@@ -261,8 +243,61 @@ permanent.
   Top-10-features-only: 0.9548 — signal is spread across many features,
   not concentrated in a few. Implication: new-feature ideas should target
   the reservoir/water-value axis (interactions), not inflow/constraints.
+  Section 4 added (not yet executed): five new feature groups screened on
+  top of the 193 baseline with the same default XGB — cyclic (hod/dow
+  sin+cos; NEW, never tested before), head (per-reservoir vol_head curve
+  head at init volume + local head + local gross head vs plant
+  outlet_line), spread (terminal water-value spread/std), anomaly
+  (inflow vs 1958-2014 doy climatology), trailing (30-day trailing price
+  and price minus it). Groups 2-5 are re-screens of the closed
+  feature-experiments groups (all noise under the clean protocol) —
+  included for the report story; only the cyclic group is genuinely new.
+  A sixth group added after user question: **volpath** — per-reservoir
+  volume fraction at each of the 7 day boundaries of the case week
+  (baseline only uses the case-start level) + local capacity-weighted
+  fractions per day. Also genuinely new, and the most promising idea of
+  the batch (the level trajectory is optimizer state). Any promising
+  delta still needs a clean-protocol test vs 0.9802.
+- `notebooks/feature_importance.ipynb` — model-interpretation notebook for
+  the report, executed: baseline per-generator XGB kept
+  in memory, then (1) built-in gain importance normalized per generator,
+  (2) mean |treeSHAP| via `pred_contribs` (no extra package) with a
+  Spearman gain-vs-SHAP rank comparison, (3) dependence plots: predicted
+  vs actual ON-rate by 20 quantile bins of local price-minus-water-value
+  and by hour of day, for Tokke_G1 / Vinje_G1 / Lio_G1. Closes the
+  "no model interpretation (-3)" grading deduction. Runtime ~15 min.
+  Executed: fit cell reproduces the baseline exactly (micro 0.9802,
+  per-gen AUCs match). Gain top: local_price_minus_val 0.157 normalized,
+  then price_minus_val__Vinjevatn 0.038. SHAP top:
+  price_minus_val__Vinjevatn 0.138, local_price_minus_val 0.127,
+  price_minus_val__Venemo 0.070. Spearman(gain, SHAP) mean rankings =
+  0.341 — the two views disagree in detail (gain concentrates on the
+  local aggregate, SHAP spreads across per-reservoir columns) but agree
+  the price-minus-water-value family dominates. Notable: the constraint
+  feature minflow__b_Byrtevatn reaches gain rank 8 (0.0159) despite the
+  constraints group ablation being negative — real weight for Byrte.
+- `notebooks/xgboost_volpath.ipynb` — clean-protocol adoption test of the
+  screen winners. Executed: baseline 0.9802 (reproduces exactly);
+  +volpath 0.9804 (+0.0002); +volpath+cyclic 0.9806 (+0.0004). Both
+  deltas within the ~0.001 noise floor -> **volpath NOT adopted** per the
+  pre-registered bar; the feature search stays closed. Screen-to-clean
+  shrinkage confirmed again: +0.0017 on the default-XGB screen became
+  +0.0002 under the clean protocol (same pattern as the original closed
+  feature search). Per-generator: Haukeli +0.0048 with volpath (but
+  -0.0017 with volpath+cyclic), Lio -0.0081 (the two hard units move in
+  opposite directions and net out), Kjela +0.0034 (vol+cyc), rest noise.
+  Flagged option: volpath+cyclic is a legitimate SECOND Kaggle selection
+  (the format allows two; the better counts on the private leaderboard) —
+  equal-within-noise val performance means a free second draw, not an
+  improvement claim.
 - `notebooks/kaggle_submission.ipynb` — full-train XGBoost, test-case
-  predictions, writes `../output.csv` (see next steps). Executed: in-sample 2022
+  predictions, writes `../output.csv` (scored 0.98722). Extended with a
+  second-prediction section (not yet executed): the volpath+cyclic variant
+  trained on all 2922 cases, writing `../output2.csv` as the second Kaggle
+  selection (equal-within-noise val 0.9806; diversification pick, the
+  better of the two selected counts on the private leaderboard). The
+  fit-predict cell no longer deletes the base matrices (the variant
+  section reuses them). Executed: in-sample 2022
   fit is ~1.0 per generator (Vinje_G1 0.9999, rest 1.0) — at 61k rows the
   400-tree model fully memorizes, so this says nothing beyond "features are
   expressive"; the informative ceiling remains 0.9985 on all 2922 cases
