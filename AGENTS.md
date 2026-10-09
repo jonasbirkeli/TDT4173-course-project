@@ -307,11 +307,19 @@ Archived (moved to `archive/`, see above): `xgboost_stop_heldout`,
   min_child_weight 3/10, reg_lambda 0.1/10, subsample 0.7/0.9,
   colsample_bytree 0.7/0.9) on the 193-feature baseline under the clean
   protocol (12 variants + baseline refit, then an auto-combined
-  configuration of the winning factors). Authored, NOT yet executed.
-  Pre-registered adoption bar: a factor counts only if its best variant
-  beats 0.9802 by >0.0015 (seed-noise range 0.0014), and the combo must
-  beat 0.9802 by the same margin. Answers the "was any parameter
-  optimization done?" report question either way.
+  configuration of the winning factors). Executed. Baseline refit
+  reproduces 0.9802 exactly. Measured: depth_5 0.9766, depth_6 0.9707,
+  depth_8 0.9799, depth_9 0.9799, mcw_3 0.9800, mcw_10 0.9808,
+  lambda_0.1 0.9798, lambda_10 0.9812, sub_0.7 0.9805, sub_0.9 0.9805,
+  col_0.7 0.9801, col_0.9 0.9802. Only depth has effects outside noise,
+  and it is non-monotonic (depth 6 is the worst of all, -0.0095); depth 7
+  is an empirical local optimum. Every other factor is flat within noise;
+  the best single delta (lambda_10, +0.0010) is below the pre-registered
+  +0.0015 bar. The auto-combo (mcw 10 + lambda 10 + sub 0.7 + col 0.9)
+  scored 0.9796 (-0.0007) — within-noise deltas do not stack.
+  Decision: **baseline configuration stands; hyperparameter search
+  closed.** Answers the "was any parameter optimization done?" report
+  question with measurements.
 - `notebooks/kaggle_submission.ipynb` — full-train XGBoost, test-case
   predictions, writes `../output.csv` (scored 0.98722). Extended with a
   second-prediction section (executed): the volpath+cyclic variant trained
