@@ -87,8 +87,10 @@ Vinje_G2 0.9752, Vinje_G3 0.9566. GRU val-2022 predictions saved to
 `gru_val_preds.npz`.
 
 Kaggle public leaderboard (test 2023-2024): our XGB baseline full-train
-`output.csv` **0.98722**; volpath+cyclic variant `output2.csv` **0.98711**
-(equal-within-noise, both selected; better counts on private). Teammate
+`output.csv` **0.98722**; volpath+cyclic variant `output2.csv` **0.98711**;
+`reg_lambda=10` variant `output3.csv` **0.98739** (best; equal-within-noise
+on val, +0.0010 — a diversification draw that paid off). FINAL SELECTIONS:
+output.csv + output3.csv (better counts on private). Teammate
 line (`origin/fredrik`, per-generator CatBoost, 193 features, RUN_MODE
 notebook): Kaggle **0.98679** — below both our selections. Its untested
 v2 feature ideas (upstream-catchment aggregates, gross-head proxy,
@@ -195,11 +197,11 @@ the superseded-but-recorded notebooks into `archive/` (see below).
   **0.98711** public — slightly below output.csv (0.98722), as expected for
   an equal-within-noise variant. Both stay selected: the better of the two
   counts on the private leaderboard.
-- `output3.csv` — third candidate (baseline features, `reg_lambda=10`,
-  the best single hyperparameter screen delta at +0.0010 val, within
-  noise). Authored section in `kaggle_submission.ipynb` (variant2 cells),
-  NOT yet executed. Plan: submit, and if its public score beats output2's
-  0.98711, select it as the second prediction instead of output2.
+- `output3.csv` — Kaggle submission 3 (baseline features, `reg_lambda=10`),
+  scored **0.98739** public — the best of the three. FINAL SELECTIONS:
+  `output.csv` (0.98722) + `output3.csv` (0.98739); output2.csv is dropped.
+  Short notebook 1 must reproduce output.csv (baseline), short notebook 2
+  must reproduce output3.csv (baseline pipeline with `reg_lambda=10`).
 
 ## Archive folder `archive/`
 
@@ -334,8 +336,9 @@ Archived (moved to `archive/`, see above): `xgboost_stop_heldout`,
   selected counts on the private leaderboard). A third candidate section
   (variant2 cells, NOT yet executed) writes `../output3.csv`: baseline
   features with `reg_lambda=10` (best single hyperparameter-screen delta,
-  +0.0010 val, within noise) — submit and swap it in as the second
-  selection only if it beats 0.98711 public. The
+  +0.0010 val, within noise). Executed; scored **0.98739** public, the
+  best of the three candidates -> final selections are output.csv +
+  output3.csv. The
   fit-predict cell no longer deletes the base matrices (the variant
   section reuses them). Executed: in-sample 2022
   fit is ~1.0 per generator (Vinje_G1 0.9999, rest 1.0) — at 61k rows the
