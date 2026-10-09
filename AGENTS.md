@@ -86,6 +86,16 @@ Tokke_G3 0.9801, Tokke_G4 0.9858, Vesle Kjela 0.9853, Vinje_G1 0.9794,
 Vinje_G2 0.9752, Vinje_G3 0.9566. GRU val-2022 predictions saved to
 `gru_val_preds.npz`.
 
+Kaggle public leaderboard (test 2023-2024): our XGB baseline full-train
+`output.csv` **0.98722**; volpath+cyclic variant `output2.csv` **0.98711**
+(equal-within-noise, both selected; better counts on private). Teammate
+line (`origin/fredrik`, per-generator CatBoost, 193 features, RUN_MODE
+notebook): Kaggle **0.98679** — below both our selections. Its untested
+v2 feature ideas (upstream-catchment aggregates, gross-head proxy,
+margin-remaining) and its RUN_MODE/frozen-config reproducibility pattern
+are noted above; the CatBoost line also satisfies the "more than one
+predictor type" grading requirement alongside our archived GRU.
+
 ## Error analysis findings (`error_analysis.ipynb`, val 2022)
 
 - Haukeli_G1 (XGB 0.9352) and Lio_G1 (XGB 0.9225) are the hard units. Both
