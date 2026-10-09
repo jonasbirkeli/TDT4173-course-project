@@ -40,6 +40,12 @@ only, never pre-state results in markdown before they are measured.
   baseline under the clean protocol = noise. None added. Documented in
   `feature_experiments.ipynb`. Do not re-open without a new idea that is not
   a re-encoding of the same physics.
+- **ADOPTED CONFIG (2026-10-09)**: baseline 193 features + v2 group
+  (17 init_level_m columns, 7 upstream_* aggregates, local_gross_head_m,
+  2 margin-remaining suffix sums) + `reg_lambda=10` — val 2022
+  **0.9823** (+0.0021, above the +0.0015 bar). New numbers to beat:
+  0.9823 (val 2022). The 0.9802 baseline remains the reference for
+  feature/protocol comparisons.
 - **Baseline numbers to beat**: XGBoost micro AUC **0.9802** (val 2022),
   pooled LOYO OOF **0.9758** (all 2922 cases, the most stable comparison
   number). In-sample ceiling: 0.9985 (`insample.ipynb`) — the features nearly
@@ -105,6 +111,26 @@ train_tail stop): micro 0.9797. XGB+LGBM mean-prob ensemble: 0.9805
 (+0.0003 = noise). GBDT+GBDT ensembling is dead, consistent with the
 seed-averaging and GRU results. Measured directly by the assistant via
 `.venv/bin/python` background run (XGB reproduced 0.9802 exactly).
+
+## ADOPTED: v2 features + reg_lambda=10 (measured 2026-10-09, val 2022)
+
+The two best below-bar deltas STACK: v2 features (+0.0009 alone) combined
+with `reg_lambda=10` (+0.0010 alone) measured **0.9823** vs baseline
+0.9802 (+0.0021) — ABOVE the pre-registered +0.0015 adoption bar. First
+adoption since the original pipeline. Key detail: lambda10's
+regularization recovers the Lio loss that v2 alone caused — Lio +0.0022
+alongside Haukeli +0.0058, Vesle Kjela +0.0072, Songa +0.0039; only Kjela
+negative (-0.0005). Unlike the four-factor hyperparameter combo (which
+canceled), these two factors act on different axes (features vs
+regularization) and are complementary.
+
+Consequences:
+- `kaggle_submission.ipynb` has a variant3 section (NOT yet executed)
+  writing `../output4.csv`: full-train, v2 features + lambda10. User
+  runs it, submits; selection decision pending its public score.
+- If output4 becomes a selection, short notebook 2 must reproduce it.
+- A parallel val test of v2+lambda10+volpath+cyclic is running (adopt
+  only if it beats 0.9823 by >0.0015).
 
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
