@@ -173,7 +173,12 @@ notebook's variant4 cells directly via `.venv/bin/python` (runner:
 (725x2353, 0 NaNs, Run No order identical), mean |diff| vs output4
 0.0145 with 4.4% of cells differing >0.1 — genuinely diversified.
 `kaggle_submission.ipynb` now has a variant4 section (cells
-variant4-md/setup/fit/write). Public score pending.
+variant4-md/setup/fit/write). **Public score: 0.98811 — NEW BEST**
+(+0.00035 over output4's 0.98776). Second time a within-noise val
+delta paid off on public (lambda10 was the first): the val-2022
+protocol appears to under-estimate transfer to 2023-2024 for
+physics-motivated features. SELECTIONS UPDATE: output5 (0.98811) +
+output4 (0.98776) are now the two picks for the private LB.
 
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
