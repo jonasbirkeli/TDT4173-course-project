@@ -193,7 +193,10 @@ transfer (lambda10, eff_runlen, wvdrift). SELECTIONS: output6 (0.98813)
 + output5 (0.98811) — the two best public scores, same base config.
 Third probe: `output7.csv` = adopted + shape arm (val 0.9826, the
 second-best screen arm — correcting the earlier note that lumped it
-with the below-baseline arms). Generated same way; score pending.
+with the below-baseline arms). Generated same way (runner
+`/tmp/run_output7.py`, notebook variant6 section); format validated
+(725x2353, 0 NaNs), mean |diff| vs output6 0.0162, 5.1% of cells
+differ >0.1. Public score pending.
 
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
