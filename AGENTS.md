@@ -165,6 +165,16 @@ the binding constraint. **Idea screen CLOSED, nothing adopted.**
 Scripts: `/tmp/idea_screen.py`, `/tmp/idea_combo.py` (SMOKE=1 env var
 runs a 1/12-subset code-validation pass first — caught 4 crashes cheaply).
 
+Follow-up (2026-10-10): `output5.csv` generated as a diversification
+draw (like output3 was) — full-train of adopted config + the eff_runlen
+extras (val 0.9827, +0.0004 = within noise). The assistant executed the
+notebook's variant4 cells directly via `.venv/bin/python` (runner:
+`/tmp/run_output5.py`); format validated against sample_submission
+(725x2353, 0 NaNs, Run No order identical), mean |diff| vs output4
+0.0145 with 4.4% of cells differing >0.1 — genuinely diversified.
+`kaggle_submission.ipynb` now has a variant4 section (cells
+variant4-md/setup/fit/write). Public score pending.
+
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
 Ported fredrik's never-trained `hydro-context-v2` group (upstream-catchment
