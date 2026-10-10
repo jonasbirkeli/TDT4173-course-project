@@ -196,7 +196,14 @@ second-best screen arm — correcting the earlier note that lumped it
 with the below-baseline arms). Generated same way (runner
 `/tmp/run_output7.py`, notebook variant6 section); format validated
 (725x2353, 0 NaNs), mean |diff| vs output6 0.0162, 5.1% of cells
-differ >0.1. Public score pending.
+differ >0.1. **Public score: 0.98829 — NEW BEST** (+0.00016 over
+output6). All three single-arm probes beat plain output4 on public:
+eff_runlen +0.00035, wvdrift +0.00037, shape +0.00053. Public ranking
+(shape > wvdrift > eff_runlen) does NOT match val ranking (eff_runlen
+0.9827 > shape 0.9826 > wvdrift 0.9824) — but all three transfer
+positively. SELECTIONS: output7 (0.98829) + output6 (0.98813).
+Next: val test of prediction-ensembling the three arms (NOT feature
+concat, which collapsed on val) before any output8 probe.
 
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
