@@ -205,6 +205,24 @@ positively. SELECTIONS: output7 (0.98829) + output6 (0.98813).
 Next: val test of prediction-ensembling the three arms (NOT feature
 concat, which collapsed on val) before any output8 probe.
 
+Arm-ensemble val test (measured 2026-10-10, clean protocol, val 2022;
+sanity arm reproduced 0.9823 a third time): singles eff_runlen 0.9827,
+shape 0.9826, wvdrift 0.9824. MEAN-PROB ensemble of the three arms:
+**0.9830 — best val number ever measured** (+0.0007 over adopted,
++0.0003 over the best single; within the noise floor but consistently
+positive, and all three arms transfer positively on public). Adding
+plain adopted (4-way mean) 0.9829 — slightly worse, exclude it.
+RANK-mean ensemble: 0.9502 — CATASTROPHIC. Per-generator rank
+normalization destroys the cross-generator score levels, and the
+metric is pooled micro AUC. Report-worthy negative result; also
+explains why "rank ensembling" must never be used for this metric.
+Nuance for the report: this contradicts the earlier "GBDT+GBDT
+ensembling is dead" conclusion — that was same-features/different-
+algorithm; different-features/same-algorithm ensembling works.
+`output8.csv` = column-wise mean of output5+output6+output7 (no
+retraining needed — they ARE the full-train versions of the three
+arms). Format validated (725x2353, 0 NaNs). Public score pending.
+
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
 Ported fredrik's never-trained `hydro-context-v2` group (upstream-catchment
