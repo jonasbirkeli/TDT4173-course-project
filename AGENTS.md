@@ -143,6 +143,28 @@ Consequences:
   **the adopted config is FINAL**: v2 features + reg_lambda=10, val
   0.9823, public 0.98776. Model search closed.
 
+## Literature-idea feature screen (measured 2026-10-10, clean protocol, val 2022)
+
+Seven literature-backed ideas (from an external model with internet access;
+head/efficiency-adjusted break-even margins, margin run-lengths, water-value
+drift, cascade-coupled upstream margins, inflow-forcing index, storage
+freedom hours, price-shape suffix features) each implemented exactly and
+screened ON TOP of the adopted config (sanity arm reproduced 0.9823 exactly,
+twice). Measured micro AUC val 2022: adopted 0.9823; eff 0.9820; eff+runlen
+0.9827; wvdrift 0.9824; cascade 0.9824; forcing 0.9823; freedom 0.9822;
+shape 0.9826. Best single delta +0.0004 — all within the 0.0014 noise
+floor, none near the +0.0015 bar. Combos are WORSE: eff+runlen+wvdrift
+0.9772, all-positive-arms 0.9804 (fourth and fifth see-saw occurrence:
+combo lifts Lio to 0.9386 and Haukeli to 0.9375 but collapses Songa
+0.9969 -> 0.9921). Notable per-generator moves that did not pool:
+wvdrift Lio 0.9241 -> 0.9363 (+0.0122, largest single-unit move ever
+measured on the hardest unit), eff_runlen Haukeli +0.0068. Conclusion:
+the ideas contain real signal for the hard units but it does not
+generalize across the pool; the missing outage/regime variable remains
+the binding constraint. **Idea screen CLOSED, nothing adopted.**
+Scripts: `/tmp/idea_screen.py`, `/tmp/idea_combo.py` (SMOKE=1 env var
+runs a 1/12-subset code-validation pass first — caught 4 crashes cheaply).
+
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
 Ported fredrik's never-trained `hydro-context-v2` group (upstream-catchment
