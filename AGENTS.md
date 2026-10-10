@@ -221,7 +221,13 @@ ensembling is dead" conclusion — that was same-features/different-
 algorithm; different-features/same-algorithm ensembling works.
 `output8.csv` = column-wise mean of output5+output6+output7 (no
 retraining needed — they ARE the full-train versions of the three
-arms). Format validated (725x2353, 0 NaNs). Public score pending.
+arms). Format validated (725x2353, 0 NaNs). **Public score:
+0.98848 — NEW BEST** (+0.00019 over output7; the val ensemble gain
+of +0.0003 transferred). SELECTIONS: output8 (0.98848) + output7
+(0.98829). Note: output8 was rewritten as float32 after the user
+spotted a 30 MB file size (float64 verbosity, no precision benefit).
+Next: val test of adding cascade/forcing (diversity candidates) to
+the ensemble before any output9.
 
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
