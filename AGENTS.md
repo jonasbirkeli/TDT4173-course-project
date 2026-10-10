@@ -132,8 +132,13 @@ Consequences:
 - Parallel val test of v2+lambda10+volpath+cyclic measured 0.9822 vs
   0.9823 — no gain, NOT adopted. Third occurrence of the hard-unit
   see-saw: Lio +0.0093 from the volume trajectory, but Haukeli -0.0029
-  and Songa -0.0014; nets to zero. The adopted config is final for this
-  search.
+  and Songa -0.0014; nets to zero.
+- output4 (full-train of the adopted config) scored **0.98776** public —
+  above the A reference 0.98755. A one-factor screen around the ADOPTED
+  config is next (the previous hyperparameter screen was centered on the
+  old 193-feature baseline; with 221 features the optimum may have
+  shifted): lambda 5/20/30, min_child_weight 10, depth 8, all on top of
+  v2+lambda10. Adopt only if > 0.9838 (0.9823 + 0.0015).
 
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
@@ -271,10 +276,13 @@ the superseded-but-recorded notebooks into `archive/` (see below).
   an equal-within-noise variant. Both stay selected: the better of the two
   counts on the private leaderboard.
 - `output3.csv` — Kaggle submission 3 (baseline features, `reg_lambda=10`),
-  scored **0.98739** public — the best of the three. FINAL SELECTIONS:
-  `output.csv` (0.98722) + `output3.csv` (0.98739); output2.csv is dropped.
-  Short notebook 1 must reproduce output.csv (baseline), short notebook 2
-  must reproduce output3.csv (baseline pipeline with `reg_lambda=10`).
+  scored **0.98739** public.
+- `output4.csv` — Kaggle submission 4 (ADOPTED config: v2 features +
+  `reg_lambda=10`, full-train), scored **0.98776** public — above the A
+  reference (0.98755) and our best score. FINAL SELECTIONS:
+  `output4.csv` (0.98776) + `output3.csv` (0.98739). Short notebook 1
+  must reproduce output4 (v2+lambda10), short notebook 2 reproduces
+  output3 (baseline+lambda10) — pending final selection confirmation.
 
 ## Archive folder `archive/`
 
