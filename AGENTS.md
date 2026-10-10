@@ -376,10 +376,44 @@ the superseded-but-recorded notebooks into `archive/` (see below).
   scored **0.98739** public.
 - `output4.csv` — Kaggle submission 4 (ADOPTED config: v2 features +
   `reg_lambda=10`, full-train), scored **0.98776** public — above the A
-  reference (0.98755) and our best score. FINAL SELECTIONS:
-  `output4.csv` (0.98776) + `output3.csv` (0.98739). Short notebook 1
-  must reproduce output4 (v2+lambda10), short notebook 2 reproduces
-  output3 (baseline+lambda10) — pending final selection confirmation.
+  reference (0.98755).
+- `output5.csv` — adopted + eff_runlen arm, **0.98811** public.
+- `output6.csv` — adopted + wvdrift arm, **0.98813** public.
+- `output7.csv` — adopted + shape arm, **0.98829** public. FINAL
+  SELECTION 2, reproduced by `Short notebook 2.ipynb`.
+- `output8.csv` — column-wise mean of output5+6+7, **0.98848** public,
+  our best. FINAL SELECTION 1, reproduced by `Short notebook 1.ipynb`.
+- `Short notebook 1.ipynb` — delivery notebook 1 (23 cells,
+  self-contained, data paths `data/...`): EDA, light feature testing,
+  feature engineering (v2 group + the three arms), clean-protocol val
+  test, final 3-arm full-train model writing `output8.csv`,
+  gain-importance interpretation, results table. Executed end-to-end
+  via `/tmp/run_short_nb.py`: reproduces the submitted output8.csv
+  exactly (per-arm full-train predictions bit-identical; CSV text
+  differs only in the last digit of the ensemble mean, max 1.5e-7 —
+  the submitted file was restored from backup afterwards).
+- `Short notebook 2.ipynb` — delivery notebook 2 (21 cells): compact
+  EDA, feature testing, adopted + shape arm, final full-train model
+  writing `output7.csv`. Executed end-to-end: reproduces the submitted
+  output7.csv **byte-identically** (verified `cmp`).
+
+  Measured finding from the delivery-notebook runs (2026-10-10): the
+  notebooks build the v2 columns in a different ORDER than the screen
+  scripts ([186 base][7 local][17 init_level_m][...] vs
+  [186 base][17 init_level_m][7 local][...]). With
+  `colsample_bytree=0.8` the random column draws depend on column
+  order, so the train_tail early-stopping trajectories differ and the
+  val-2022 numbers through the notebook path are: adopted **0.9705**
+  (Songa_G1 stops at 1 tree — a single split maxes the 90-day
+  stop-window AUC and 25 rounds bring no improvement, costing ~0.012
+  pooled), eff_runlen **0.9816**, wvdrift **0.9824**, shape **0.9820**,
+  3-arm mean **0.9824** (screen: 0.9823/0.9827/0.9824/0.9826/0.9830).
+  The full-train path is unaffected (same column order as
+  `kaggle_submission.ipynb`, hence the bit-identical reproduction).
+  Both notebooks' fetest markdown states these actual numbers with the
+  explanation; `fit_arm` prints a note when a generator stops under
+  100 trees. Column-order sensitivity of train_tail early stopping is
+  a real fragility of the protocol — worth one sentence in the report.
 
 ## Archive folder `archive/`
 
