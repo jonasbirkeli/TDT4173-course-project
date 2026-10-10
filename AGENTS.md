@@ -134,11 +134,14 @@ Consequences:
   see-saw: Lio +0.0093 from the volume trajectory, but Haukeli -0.0029
   and Songa -0.0014; nets to zero.
 - output4 (full-train of the adopted config) scored **0.98776** public —
-  above the A reference 0.98755. A one-factor screen around the ADOPTED
-  config is next (the previous hyperparameter screen was centered on the
-  old 193-feature baseline; with 221 features the optimum may have
-  shifted): lambda 5/20/30, min_child_weight 10, depth 8, all on top of
-  v2+lambda10. Adopt only if > 0.9838 (0.9823 + 0.0015).
+  above the A reference 0.98755. One-factor screen around the ADOPTED
+  config (the previous screen was centered on the old 193-feature
+  baseline): adopted sanity 0.9823 (reproduced exactly), lam_5 0.9819,
+  lam_20 0.9823, lam_30 0.9824, mcw_10 0.9722 (-0.0101 — collapses
+  Songa 0.997 -> 0.978; hyperparameters must be re-checked when the
+  feature set changes), depth_8 0.9821. Nothing beats the +0.0015 bar ->
+  **the adopted config is FINAL**: v2 features + reg_lambda=10, val
+  0.9823, public 0.98776. Model search closed.
 
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
