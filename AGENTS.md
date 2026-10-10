@@ -229,6 +229,14 @@ spotted a 30 MB file size (float64 verbosity, no precision benefit).
 Next: val test of adding cascade/forcing (diversity candidates) to
 the ensemble before any output9.
 
+Ensemble-extension val test (measured 2026-10-10, clean protocol):
+singles cascade 0.9824, forcing 0.9823 (reproduced). Adding either
+(or both) to the 3-arm mean: 0.9829 in every variant vs 0.9830 for
+the plain 3-arm mean. Diversity does NOT help here — the 3-arm
+ensemble is val-optimal. **Ensemble search CLOSED.** Final state:
+output8 (3-arm mean, public 0.98848) + output7 (shape arm, public
+0.98829) are the two selections. Remaining work is delivery only.
+
 ## Fredrik-branch v2 features under the clean protocol (measured 2026-10-09)
 
 Ported fredrik's never-trained `hydro-context-v2` group (upstream-catchment
