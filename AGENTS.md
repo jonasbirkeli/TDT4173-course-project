@@ -225,3 +225,23 @@ Investigate two stronger, distinct model families. Neither candidate has demonst
 
 - The user reported Kaggle ROC-AUC 0.98679 for `20261009T093004_209176Z_submit_decision_logloss`, compared with 0.98417 for the earlier probability submission: +0.00262. Scores are user-reported, not independently retrieved; leaderboard partition is unspecified. Do not describe this as a private leaderboard score or a grade guarantee.
 - New decision features improved both measured development folds and this reported Kaggle comparison. Preserve the exact frozen configuration and artifacts as the reference for LightGBM and later ensembles. No assistant training occurred.
+
+## Jonas branch review before the next model implementation
+
+- The user asked to inspect Jonas's XGBoost work before starting LightGBM. Reviewed local `origin/jonas` at `5fe43fe`. No checkout/merge, installation or fitting occurred. Details: `experiments/2026-10-09-jonas-branch-review.md`; read-only snapshots: `outputs/jonas_review/`.
+- Branch records baseline `output.csv` score 0.98722 and volpath+cyclic `output2.csv` public score 0.98711. These are branch-recorded, not independently retrieved; do not infer a grade from the branch's asserted threshold.
+- All 193 original baseline features were verified numerically identical to our v1 features after renaming, for all 14 generators across seven representative train/test cases. The baseline's added value is model/training choices rather than new inputs.
+- Transferable ideas: isolated CatBoost `rsm=0.8` feature subsampling on the existing decision features; isolated four cyclic hour/day-of-week features; later predeclared fixed-tree-budget sensitivity or Depthwise growth. These are untrained hypotheses. Preserve the 0.98679 reference and test on matching purged folds.
+- Protocol audit: stopping cases are 90 in-sample training cases; six training horizons cross the 2022 validation boundary. Its reported validation score is not directly comparable with our development folds. Its volpath reads observed volumes at S+1..S+7 days, contrary to our prediction-time feature rule; do not copy this feature group. Development early stopping is legitimate tuning, but final confirmation must remain separate.
+- Haukeli/Lio whole-week errors are useful diagnostics, not proof of an unavailable outage variable; high in-sample AUC is not a generalization ceiling. No CatBoost code was changed during this review.
+
+## Isolated CatBoost RSM experiment prepared
+
+- `catboost.ipynb` now defaults to `EXPERIMENT = "decision_rsm_logloss"`, `RUN_MODE = "check"`, `SELECTED_CONFIG = None`. This overrides prior current-mode notes. It uses exactly the 216 decision features, same signature/folds/seed/parameters, with only `rsm=0.8` added. No new features or dependencies.
+- The exact decision configuration that produced the reported 0.98679 is preserved inline as `DECISION_REFERENCE_CONFIG`, usable with `EXPERIMENT = "decision_logloss"`. The RSM preset requires its own validation and frozen configuration. Existing output artifacts are preserved.
+- RSM samples candidate features at split selection, unlike XGBoost's per-tree column sampling. Its potential benefit is generalization; score and training runtime are unmeasured until the user trains. The assistant did not start training or install dependencies.
+
+## RSM validation completed by the user
+
+- `20261009T103934_880896Z_validate_decision_rsm_logloss` completed in 1592.96 seconds (26 min 33 s). Micro AUC: 0.9678485591 (2020), 0.9827461050 (2021), versus 0.9667133428/0.9816361537 for decision_logloss. Input hashes, folds and feature lists match; only rsm=0.8 differs in model parameters. Mean Logloss and Brier also improved on both folds. These remain development results; no Kaggle score is known for RSM.
+- Notebook configured for decision_rsm_logloss / submit with the exact selected configuration from that completed validation. The user starts training. No assistant training occurred. The 0.98679 decision reference remains preserved inline and in its run artifacts.

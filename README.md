@@ -53,7 +53,8 @@ Use the `EXPERIMENT` setting to compare presets on the same development folds:
 | `probability_logloss` | Original 193 features | Logloss |
 | `upstream_logloss` | 224 features including upstream reservoirs, initial head proxies, and price windows | Logloss |
 | `shared_logloss` | Original 193 numeric features plus categorical generator identity; one shared model | Logloss |
-| `decision_logloss` (default) | 216 features: original inputs plus economic periods and water-pressure proxies | Logloss |
+| `decision_logloss` | 216 features: original inputs plus economic periods and water-pressure proxies | Logloss |
+| `decision_rsm_logloss` (default) | Same 216 features; only candidate-feature sampling changes to `rsm=0.8` | Logloss |
 | `economics_logloss` | 207 features: economics group only | Logloss |
 | `water_balance_logloss` | 202 features: water-pressure group only | Logloss |
 
@@ -114,3 +115,10 @@ without fitting models or reading holdout predictions. The initial audit found t
 75% separate probability predictions plus 25% shared predictions improved both
 development years. See [the measured blend analysis](experiments/2026-10-09-blend-analysis.md).
 This is an exploratory candidate requiring confirmation, not a measured Kaggle gain.
+
+The current RSM experiment is in non-training `check` mode. Run `check`, then
+`smoke`, then `validate` yourself with `EXPERIMENT = "decision_rsm_logloss"`,
+restarting the kernel between modes. Compare both years against the completed
+`decision_logloss` reference (0.966713 / 0.981636). The exact prior submission
+configuration is retained as `DECISION_REFERENCE_CONFIG`; do not reuse it for
+the new preset. New RSM training performance and runtime are unmeasured.
