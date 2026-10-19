@@ -8,7 +8,7 @@
 - The user is aiming for an A and prioritizes predictive quality and rigorous experiments. Do not select a model solely because it is quick to implement, or assume a larger model is better.
 - ROC-AUC above 0.995 is the user's aspirational target, not an official grade threshold or a demonstrated achievable result. Never promise this score.
 - The user installs dependencies and runs training themselves. Add required packages to `requirements.txt`, but do not install them or start any model training unless the user explicitly changes this instruction.
-- Implement and test data processing, code structure, validation, and output mapping without training. Clearly state that model fitting, runtime, and predictive performance remain unverified until the user runs them.
+- Implement and check data processing, validation, and output mapping without fitting models. For untrained changes, state that fitting, runtime and predictive quality are unverified. Distinguish those hypotheses from completed measured runs.
 
 ## Task and authoritative local references
 
@@ -107,141 +107,64 @@ The grading PDF, rather than a fixed AUC target, is authoritative:
 - Include full names, student IDs, and Kaggle team name at the beginning of notebooks and report. The Kaggle team name must include the group number.
 - Deadline stated in the PDF: November 8, 2026, 22:00 Oslo time. Consult the document for late-submission penalties and other administrative rules.
 
-## Agreed modeling plan
+## Current modeling direction and files
 
-Investigate two stronger, distinct model families. Neither candidate has demonstrated superiority on this dataset yet. The user deleted `predict.py`; do not recreate it. A fold-matched seasonal reference is now inlined in the CatBoost notebook.
+- The latest modeling direction is XGBoost-only experimentation with physically informed features. Do not switch families or launch training merely because older notes mention another plan.
+- The user deleted `predict.py`; do not recreate it. The old seasonal reference is inlined in CatBoost. Its historical2022micro AUC was .564993; it is not a current submission.
+- All previous bounded training/installation authorizations are completed. A new run requires a new explicit user instruction; no training is currently active. The user normally installs dependencies and trains.
+- `xgboost.ipynb`: current pure-XGBoost candidate, self-contained, `check` mode, `topology_allocation`, frozen dictionary inline. Fourteen classifiers,298features, seed42, four CPU threads.
+- `catboost.ipynb`: earlier CatBoost RSM pipeline and historical controlled presets. It retains the user's existing `submit` mode; do not execute its run cell during a check without overriding the mode in memory.
+- `lightgbm.ipynb`: selected neutral-initialization classifier pipeline, check mode and frozen configuration inline.
+- `sequence_model.ipynb`: fully implemented wide TCN-inspired model, check mode. It is no longer a scaffold. Symmetric convolutions legitimately use known whole-week inputs; do not call it a strictly causal TCN.
+- `hydro_ensemble.ipynb`: independently runnable original56.25%CatBoost/18.75%LightGBM/25%TCN ensemble, check mode. These are not the later35/30/35weights.
+- `test.ipynb`: existing Kaggle download/setup notebook. `schedule_visualization.ipynb`: existing schedule viewer, reading Unit_commitment_decisions.csv. Preserve both.
+- No `report.ipynb` currently exists. `docs/experiments.md` consolidates experiment findings, unsuccessful trials, topology reasoning, sources and artifact paths for writing the report. Do not imply that the course report or final short notebooks are finished.
+- Notebook runtime code is inlined. Do not recreate deleted notebook builders, batch runners, temporary cache generators or development helpers for routine notebook use.
+- `tests/` contains the retained non-fitting feature/pipeline checks. Force check mode and block model fitting when inspecting notebooks. Tests may require the supplied ignored course files.
+- `requirements.txt` is the general setup. `environments/models.txt` and `environments/xgboost.txt` preserve exact measured package versions; do not install or upgrade packages without authorization.
+- `.venv` exists. PowerShell: `.\.venv\Scripts\python.exe`. uv was found at `C:/Users/fredr/.local/bin/uv.exe`.
+- Data, outputs, local PDFs, metric and mapping/template files are ignored by Git. A fresh checkout needs the provided course resources separately.
 
-### Candidate 1: CatBoost
+## Frozen measured results
 
-- Gradient-boosted decision trees using actual operating conditions and engineered weekly context.
-- Candidate features: hourly prices and inflows, initial storage/filling fractions, terminal water values, horizon position, calendar variables, constraints, and topology-informed relationships.
-- Include context such as price relative to the rest of the week and accumulated/remaining weekly inflow.
-- Investigate one shared classifier with generator identity versus separate generator models using measured validation performance and resource costs.
-- Use feature importance and/or SHAP with appropriate limitations for interpretation.
-- LightGBM and XGBoost remain legitimate alternatives; CatBoost was not chosen because it has been proven better here.
+Development uses the same purged2020/2021case folds (1820/360 and2186/359 fitting/evaluation cases).2022has prior project exposure; never describe it as wholly unseen. Learned normalization uses fitting cases only. Compare feature pipelines as pipelines rather than claiming architecture superiority from different inputs.
 
-### Candidate 2: Neural sequence model
+| Candidate | 2020 micro AUC | 2021 micro AUC |
+|---|---:|---:|
+| CatBoost decision RSM | .9678485591 | .9827461050 |
+| Neutral LightGBM | .9643583 | .9833711 |
+| Wide temporal CNN | .95586145 | .96460585 |
+| Original frozen three-family blend | .9731119557 | .9853425654 |
+| Later35/30/35blend, development selection only | .9735356938 | .9856353219 |
+| XGBoost decision reference216features | .9632372220 | .9827852977 |
+| XGBoost topology descriptors279features | .9625373539 | .9823556500 |
+| Selected XGBoost topology + allocation298features | .9829521212 | .9879182383 |
 
-- Start with a temporal convolutional sequence architecture inspired by TCN, using the 168-hour input sequence plus initial state and terminal water values.
-- Predict 168 x 14 ON probabilities, with shared representations across time and generators.
-- The architecture should respect the task's available inputs: supplied planning-horizon inputs may provide whole-week context, while future labels and unavailable realized states may not.
-- Tune capacity and regularization empirically. A large Transformer is not automatically preferable and is not the agreed first neural candidate.
+The user reports Kaggle .98877 for the later three_model_submission.csv; partition unspecified. No Kaggle score has been reported for the selected XGBoost CSV. Another team's .99655 is user-reported XGBoost with a mention of topology, without code; never promise replication.
 
-### Comparison and optional ensemble
+The original blend's frozen2022confirmation was .9837118366 versus .9811846717 for its tree reference. This result does not belong to the later35/30/35weights or to XGBoost. Development selection and independent confirmation are different.
 
-- Benchmark representative training runs before choosing the full compute budget.
-- Evaluate both models using identical temporal folds and micro ROC-AUC.
-- Consider blending only if held-out predictions show complementary errors and reproducible improvements within the runtime limit.
-- Preserve an experiment log with parameters, features, seeds, fold definitions, scores, runtime, and memory observations.
+XGBoost allocation improved per-unit AUC for14/14 units in2020 and13/14 in2021; Byrte slightly declined in2021. History362features had an incomplete experiment and no complete twofold score; shape/physics/combined presets were checked but not fitted. Topology descriptors alone were weaker on both years. Record negative results honestly.
 
-### Development files
+## Selected XGBoost details and artifacts
 
-- `predict.py`: deleted by the user; historical baseline only, not a current dependency.
-- `catboost.ipynb`: self-contained implementation with 14 sequential generator-specific CatBoost classifiers, timestamp-aligned features, chronological validation, interpretation, and verified submission mapping. The user has trained the separate-model presets; the shared preset was also trained and was weaker on both development years. New decision-context presets are implemented but untrained.
-- `sequence_model.ipynb`: neural-model scaffold with the same setup and split; sequence construction and modeling remain TODO.
-- `report.ipynb`: English report outline covering EDA, experiments, comparisons, interpretation, and reproducibility; analysis remains TODO.
-- Shared Python helpers are acceptable during development. Final short notebooks must inline all required code and be independently runnable.
+- Native validation: `outputs/xgboost/20261014T162530_176483Z_validate_topology_allocation`; exact frozen config and raw hashes are there and inline in the notebook. Signature: `d08f69d2d991d7e227d3f0447ac1a9b16736704ccad26fb9fd74f608aa86f4da`.
+- CPU hist128bins, depth7, lr.05, min child weight5, L2=10, row/column sampling.8, base score.5, seed42. Development Logloss stopping80, ceiling1200; no selected model reached the ceiling. Final tree budgets are integer medians across the two development folds. Structural parameters were held fixed, not demonstrated optimal.
+- Allocation features are a deterministic12hour linear-flow relaxation over the supplied reservoir/plant/river/tunnel graph. They use initial storage, known weekly price/inflow/constraints and terminal water values, never future observed storage or UC labels.
+- Projected storage is calculated from available inputs. This is not exact SHOP: no full tunnel pressure balance, changing head, spill curves, flow penalties or binary startup physics. Initial-head efficiency and local-to-global terminal-value conversions are approximate. Do not overstate physical fidelity.
+- All3647cases solved successfully in229.51s; balance, case isolation and future-volume invariance passed. Some development trials overlapped; do not treat their elapsed times as controlled speed comparisons.
+- Full refit: `outputs/xgboost/20261014T162856_740453Z_submit_topology_allocation/xgboost_submission.csv`, SHA256 `99f6132d9befa4370dabbeb395f1c8d9a02b9c3943c61919c495b3924c1078de`.
+-14models refitted on all2922cases in840.91s, peak2.246GiB, four threads. This bounded refit reused deterministic raw preprocessing calculated earlier.229.51s +840.91s is a sum of stage times, not a measured uncached end-to-end run. The standalone notebook recomputes features from raw inputs.
+- Verification: exact725x2353schema/order/IDs, finite[0,1]probabilities, frozen budgets, and three fresh raw-input reconstructions within2.98e-08. Manifest: `outputs/xgboost_experiments/20261014T162851_099377Z_submit_topology_allocation/verification.json`; selection: `outputs/xgboost_development/frozen_selection.json`.
+- Original ensemble CSV: `outputs/hydro_ensemble/20261014T002236_840638Z_submit/ensemble_submission.csv`; full raw reproduction1024.27s,29models, peak2.73GiB.
+- Later user-scored CSV: `outputs/tcn_experiments/weight_audit_20261014/three_model_submission.csv`. Preserve all existing outputs; never overwrite a prior submission silently.
 
-## Current implementation status
+## Repository cleanup (2026-10-19)
 
-- The deleted `predict.py` implemented a seasonal-frequency lookup baseline, averaging each generator/horizon-hour target by the case's start month. It did not use operating inputs.
-- Historical baseline validation used 2551 training cases whose horizons ended before or at 2022-01-01 and 365 validation cases starting in 2022.
-- Measured baseline validation micro ROC-AUC: 0.564993. This is not a Kaggle/private leaderboard score.
-- Historical baseline output was `outputs/submission.csv`; do not treat it as output from the new CatBoost model.
-- CatBoost evaluation uses the same scikit-learn micro ROC-AUC call as the supplied metric, inlined to avoid dependence on the ignored `kaggle_metric.py`.
-- `schedule_visualization.ipynb` was corrected to read `data/kernel/Unit_commitment_decisions.csv` instead of the nonexistent `Generator_schedules_2015_2023.csv`.
-- `requirements.txt` includes the original packages plus CatBoost, scikit-learn, and PyYAML. The user installed the dependencies. Subsequent environment inspection found CatBoost 1.2.10 and scikit-learn 1.9.1. Do not install or upgrade dependencies for the user.
-- The user completed the original CatBoost validation and submission runs. The neural candidate remains a scaffold. The probability and upstream presets have also been trained by the user; the shared preset was also trained by the user; only the new decision-context presets remain untrained.
-- Original validation run: `outputs/catboost/20260928T151057_267694Z_validate`, completed in 1266.74 seconds. Micro ROC-AUC: 0.9468646363 (2020) and 0.9769469054 (2021).
-- Original submission run: `outputs/catboost/20260928T153454_952823Z_submit`, completed in 721.99 seconds. Its `catboost_submission.csv` was verified to match the template with valid probabilities. No Kaggle score is known.
-- A diagnostic re-evaluation of the existing validation predictions produced mean per-generator Logloss/Brier of 0.294538/0.093357 for 2020 and 0.195099/0.057779 for 2021. This involved no training. Diagnostic CSVs are under `outputs/catboost/baseline_fold_*_probability_diagnostics.csv`.
-- The CatBoost notebook's `check` mode has run successfully without installing packages or training. Its default mode is `check`; other modes are `smoke`, `validate`, `holdout`, and `submit`.
-- CatBoost has seven controlled `EXPERIMENT` presets: `baseline_auc` uses the original 193 features and AUC stopping; `probability_logloss` uses the same 193 features with Logloss stopping; `upstream_logloss` uses 224 features with Logloss stopping. `shared_logloss` uses the original 193 numeric features plus categorical generator identity in one shared model. The current default is `decision_logloss`, in non-training `check` mode. It adds 23 features to v1 (216 total). Optional `economics_logloss` (207) and `water_balance_logloss` (202) isolate the groups.
-- The v2 features include all connected upstream reservoirs, capacity-weighted aggregates, initial levels from supplied volume-level curves, a gross-head proxy, and in-horizon price-window summaries. Haukeli's upstream set includes Langeidvatn as well as its immediate intake Vatjern. The aggregates are descriptors, not a hydraulic simulator or realized future storage.
-- The rationale for Logloss stopping is that per-generator AUC ignores probability scales across generators, which affect global micro AUC. AUC-based stopping retained only 6 trees for Tokke G1 in the 2020 fold; its validation Logloss was substantially better later. This is evidence to test another stopping criterion, not proof that Logloss improves Kaggle performance.
-- All seven presets' data checks pass. Original v1 features were compared exactly against the previous implementation; v2 rolling-window boundaries, topology, and invariance to future realized storage/labels were checked. Evaluation matches the supplied Kaggle metric on saved predictions. No new models were fitted.
-- CatBoost uses two default development folds (2020 and 2021), purging overlapping horizons at each boundary. 2022 is reserved for a frozen-configuration evaluation, without early stopping. The baseline has already been evaluated on 2022, so do not describe it as wholly unseen across project history.
-- A successful `validate` run prints `SELECTED_CONFIG`, containing experiment name, parameters, feature version/signature, seed, and median best tree counts. The user copies this dictionary into the configuration cell before `holdout` or `submit`; the experiment must match the frozen configuration.
-- The old selected dictionary is retained as `REFERENCE_CONFIG`. Current `SELECTED_CONFIG` is empty pending decision-feature validation. The completed probability configuration is retained as `PROBABILITY_REFERENCE_CONFIG`. To reproduce the old approach use `EXPERIMENT = "baseline_auc"` and `SELECTED_CONFIG = REFERENCE_CONFIG`. A pre-edit notebook backup is stored under `outputs/catboost/reference_notebook_before_improvements.ipynb`; it is not a runtime dependency.
-- Notebook section 8 compares completed development runs only; it does not choose presets using holdout/test scores. Existing outputs are preserved and new run directory names include the experiment name.
-- Each training-mode run writes a new directory under `outputs/catboost/` with metadata, input hashes, package versions, models, metrics, interpretation, and timing. Only `submit` exports `catboost_submission.csv`, after refitting all labeled cases. No saved models are needed for reproduction.
-- The sequence scaffold still has only the 2021 development fold; align it with the final CatBoost comparison protocol when implementing it.
-- A `.venv` exists; Windows PowerShell can run it directly with `.\.venv\Scripts\python.exe`. `uv` has been found at `C:/Users/fredr/.local/bin/uv.exe`.
-- `.gitignore` excludes local data, outputs, `.env`, and several downloaded task resources. Do not assume those resources will be available from a fresh Git checkout.
+The user requested removal of unnecessary files. Twenty-three one-off development Python scripts and the obsolete blend-helper test were removed. Fourteen experiment notes were consolidated into `docs/experiments.md`; pinned environments moved into `environments/`. Notebook contents, datasets and submissions were preserved. The old long AGENTS and removed sources have a verified ZIP backup under `outputs/cleanup/`; `outputs/cleanup/latest.json` identifies its manifest. Historical script names in the consolidated record refer to archived experiments, not current entry points.
 
-## Immediate next steps when the user proceeds
+## Remaining work
 
-1. Let the user run `check`, `smoke`, and then `validate` for `decision_logloss` in `catboost.ipynb`. Do not train on their behalf.
-2. Inspect their results/errors and compare both development years against the original setup; do not run training for them or claim an improvement before measurement.
-3. Use the user's validation results to investigate features, hyperparameters, and any benefit from LightGBM/XGBoost alternatives or blending.
-4. Develop the neural sequence candidate and compare on the same folds when requested.
-5. Record interpretation, ablations, and runtime; later prepare and verify the two standalone submission notebooks.
+The user can upload the verified pure-XGBoost CSV and report the actual score. Further modeling needs a new instruction/budget. Keep model selection rigorous; do not automatically tune against public scores or reuse2022to repeatedly optimize.
 
-## Shared-model experiment update
-
-- User-completed `probability_logloss` validation: 0.9576642204 (2020), 0.9785746981 (2021), 1387.98 seconds; run `20260928T162829_635805Z_validate_probability_logloss`.
-- User-completed `upstream_logloss` validation: 0.9574442752 (2020), 0.9786369332 (2021), 1644.36 seconds; run `20260928T165421_240982Z_validate_upstream_logloss`. Extra features did not consistently improve both years.
-- `shared_logloss` tests sharing across generators with the same numeric inputs as `probability_logloss`. Generator identity uses a categorical feature with one-hot handling. Validation trains two models, submit one. Frozen configurations now identify the model strategy and use a single `shared` tree count for this preset.
-- Full shared training has 6,872,544 rows; the raw numeric matrix alone is about 4.94 GiB. Pools and preprocessing need additional RAM. Quantization boundaries are derived only from training and reused for evaluation; partitions are prepared separately. `SHARED_MAX_MATRIX_GIB` is an allocation guard, not a peak-memory guarantee.
-- Shared notebook schema, non-training check mode, generator/target ordering, quantized CatBoost pools, unlabeled test inputs, and memory guard were verified without fitting a model. The user subsequently trained shared validation: 0.9478418857 (2020), 0.9765204360 (2021), 1643.01 seconds; run `20260928T173917_869380Z_validate_shared_logloss`. The user owns installation and all training.
-
-## Decision-feature experiment update (2026-10-09)
-
-- The user completed probability submission run `20260928T185105_840038Z_submit_probability_logloss` in 420.34 seconds and later reported Kaggle score 0.98417, worse than their earlier submission. This score is user-reported, not independently retrieved; the previous Kaggle score/partition is unknown. No completed CatBoost holdout run was present at inspection.
-- `decision_logloss` adds economic-period context and water-pressure proxies to v1, preserving separate models, seed, folds, depth, learning rate and stopping. Its 216 features exclude v2 upstream additions. Two ablations isolate economics (207) and water balance (202). These are untrained hypotheses, not improvements.
-- Economics features use the existing local price-minus-terminal-value descriptor. They do not claim to represent net profit or properly converted downstream marginal water cost. Water-pressure features use initial storage and direct intake natural inflow only, with no releases/transfers; they are not forecasts of realized storage or mandatory production.
-- `analyze_catboost_errors.py` is a development-only, non-training audit of saved development predictions. It rejects holdout/test/smoke/incomplete runs, checks IDs and raw-label hash, reproduces micro AUC, and segments by generator, horizon day, case-start quarter and label transitions. Label-derived segments never enter features.
-- Measured findings: Haukeli has the highest Brier error in both probability development folds. Its 2020 mean predicted ON probability is 0.531146 against an observed 0.244709, and the Logloss curve selects only 5 trees (38 in 2021). Further training worsened that fold's Logloss; more trees alone is not a proven fix. Transition hours have higher conditional error but are only 0.56%/1.78% of evaluated hours after t0. Errors do not consistently worsen late in the horizon.
-- Details and evidence are in `experiments/2026-10-09-decision-features.md`; diagnostic output is `outputs/catboost_diagnostics/20261009_development_errors.csv`.
-- `tests/check_catboost_features.py` passed non-training checks for boundary windows/streaks, water units and per-reservoir excess, case isolation, label and future-volume invariance, CatBoost input, all preset schemas, ablations and exact regression of previous features/signatures. Model fitting is blocked in the test runner. No packages were installed and no new models were trained.
-- The new notebook default is `decision_logloss` / `check`; `SELECTED_CONFIG = None`. The user's previous notebook state is backed up in `outputs/catboost/notebook_before_decision_features.ipynb`, not used at notebook runtime. Existing submissions remain unchanged.
-
-## Saved-prediction ensemble audit (2026-10-09)
-
-- `analyze_catboost_blends.py` compared fixed candidate weights 0.25/0.50/0.75 for original, upstream and shared predictions blended with the separate probability reference. No training, holdout evaluation or submission generation occurred. Input manifests, fold definitions, raw labels and saved metrics were checked.
-- Best tested combination on both development years: 75% `probability_logloss` + 25% `shared_logloss`, micro AUC 0.96031427 (2020) and 0.97941690 (2021), versus 0.95766422/0.97857470 for the reference. The shared model remains useful as a potential ensemble component despite its weaker standalone results.
-- This is development selection, not independent confirmation or a Kaggle improvement. Do not repeatedly tune weights on 2022 or public scores. Final ensemble predictions require appropriately refitted separate and shared models, with both runtimes counted; the user still owns all training.
-- Details: `experiments/2026-10-09-blend-analysis.md`; full results: `outputs/catboost_diagnostics/20261009_blend_comparison.csv`. The active notebook feature experiment remains `decision_logloss` in check mode.
-
-## Decision-feature validation completed by the user
-
-- Run `20261009T085100_521077Z_validate_decision_logloss` completed in 1988.97 seconds. Micro AUC: 0.9667133428 (2020), 0.9816361537 (2021), above the probability reference's 0.9576642204/0.9785746981. Input hashes, folds and model parameters match. New features now have measured development results. No Kaggle score for this preset is known.
-- Per-generator AUC improved for 12/14 generators in 2020 and 11/14 in 2021. Haukeli ranking improved on both years; its 2020 Brier slightly worsened. Lio's 2021 AUC worsened from 0.955941 to 0.939166, and Vinje G1 worsened in both years. No retained model reached the 1500-tree cap.
-- `selected_configuration.json` in that run freezes the new preset; the existing probability configuration is incompatible with the new feature signature. Do not start training on the user's behalf.
-- The user expressed a preference to investigate CatBoost + LightGBM + XGBoost rather than a meta-model across different generators. Next model candidate: LightGBM using the same features and purged temporal folds, then evaluate complementary errors/blending. The neural candidate remains part of the distinct-model-family plan.
-
-## Pure decision-feature submission prepared
-
-- At the user's request to test a new pure CatBoost submission first, `catboost.ipynb` is now configured for `EXPERIMENT = "decision_logloss"`, `RUN_MODE = "submit"` and the exact frozen configuration from `20261009T085100_521077Z_validate_decision_logloss`. This overrides earlier current-mode notes.
-- Configuration, feature signature, seed and 14 positive tree counts were verified. No training started and no new submission was generated by the assistant. The user should restart the kernel and run all cells. No further model changes are needed before this controlled submission.
-- A 2022 holdout confirmation remains outstanding. The next Kaggle score is unknown; improved development results do not guarantee improved public performance.
-
-## Pure decision-feature submission completed by the user
-
-- Run `20261009T093004_209176Z_submit_decision_logloss` completed in 718.99 seconds (11 min 59 s). New CSV: `outputs/catboost/20261009T093004_209176Z_submit_decision_logloss/catboost_submission.csv`.
-- Independent CSV verification passed: 725 rows, 2353 columns, exact template columns/order/IDs and finite probabilities in [0, 1]. This is a pure 14-model CatBoost submission with the 216 decision features. Kaggle score remains unknown until upload. The assistant did not run training.
-
-## User-reported decision-feature Kaggle score
-
-- The user reported Kaggle ROC-AUC 0.98679 for `20261009T093004_209176Z_submit_decision_logloss`, compared with 0.98417 for the earlier probability submission: +0.00262. Scores are user-reported, not independently retrieved; leaderboard partition is unspecified. Do not describe this as a private leaderboard score or a grade guarantee.
-- New decision features improved both measured development folds and this reported Kaggle comparison. Preserve the exact frozen configuration and artifacts as the reference for LightGBM and later ensembles. No assistant training occurred.
-
-## Jonas branch review before the next model implementation
-
-- The user asked to inspect Jonas's XGBoost work before starting LightGBM. Reviewed local `origin/jonas` at `5fe43fe`. No checkout/merge, installation or fitting occurred. Details: `experiments/2026-10-09-jonas-branch-review.md`; read-only snapshots: `outputs/jonas_review/`.
-- Branch records baseline `output.csv` score 0.98722 and volpath+cyclic `output2.csv` public score 0.98711. These are branch-recorded, not independently retrieved; do not infer a grade from the branch's asserted threshold.
-- All 193 original baseline features were verified numerically identical to our v1 features after renaming, for all 14 generators across seven representative train/test cases. The baseline's added value is model/training choices rather than new inputs.
-- Transferable ideas: isolated CatBoost `rsm=0.8` feature subsampling on the existing decision features; isolated four cyclic hour/day-of-week features; later predeclared fixed-tree-budget sensitivity or Depthwise growth. These are untrained hypotheses. Preserve the 0.98679 reference and test on matching purged folds.
-- Protocol audit: stopping cases are 90 in-sample training cases; six training horizons cross the 2022 validation boundary. Its reported validation score is not directly comparable with our development folds. Its volpath reads observed volumes at S+1..S+7 days, contrary to our prediction-time feature rule; do not copy this feature group. Development early stopping is legitimate tuning, but final confirmation must remain separate.
-- Haukeli/Lio whole-week errors are useful diagnostics, not proof of an unavailable outage variable; high in-sample AUC is not a generalization ceiling. No CatBoost code was changed during this review.
-
-## Isolated CatBoost RSM experiment prepared
-
-- `catboost.ipynb` now defaults to `EXPERIMENT = "decision_rsm_logloss"`, `RUN_MODE = "check"`, `SELECTED_CONFIG = None`. This overrides prior current-mode notes. It uses exactly the 216 decision features, same signature/folds/seed/parameters, with only `rsm=0.8` added. No new features or dependencies.
-- The exact decision configuration that produced the reported 0.98679 is preserved inline as `DECISION_REFERENCE_CONFIG`, usable with `EXPERIMENT = "decision_logloss"`. The RSM preset requires its own validation and frozen configuration. Existing output artifacts are preserved.
-- RSM samples candidate features at split selection, unlike XGBoost's per-tree column sampling. Its potential benefit is generalization; score and training runtime are unmeasured until the user trains. The assistant did not start training or install dependencies.
-
-## RSM validation completed by the user
-
-- `20261009T103934_880896Z_validate_decision_rsm_logloss` completed in 1592.96 seconds (26 min 33 s). Micro AUC: 0.9678485591 (2020), 0.9827461050 (2021), versus 0.9667133428/0.9816361537 for decision_logloss. Input hashes, folds and feature lists match; only rsm=0.8 differs in model parameters. Mean Logloss and Brier also improved on both folds. These remain development results; no Kaggle score is known for RSM.
-- Notebook configured for decision_rsm_logloss / submit with the exact selected configuration from that completed validation. The user starts training. No assistant training occurred. The 0.98679 decision reference remains preserved inline and in its run artifacts.
+Write the English course report using the consolidated evidence and complete names/student IDs/group team metadata. Prepare the two independently runnable final short notebooks and exact environment configuration. The working notebooks are development artifacts, not proof that final delivery packaging is finished.

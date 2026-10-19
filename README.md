@@ -1,3 +1,26 @@
+# Tokke-Vinje unit commitment
+
+Predict hourly ON probabilities for 14 generators over a 168-hour planning week.
+The current candidate is **XGBoost with topology and water-allocation features**.
+
+## Files to use
+
+| File | Purpose |
+|---|---|
+| `xgboost.ipynb` | Current pure-XGBoost pipeline and frozen configuration |
+| `catboost.ipynb` | Earlier CatBoost experiments and reference |
+| `lightgbm.ipynb` | LightGBM comparison |
+| `sequence_model.ipynb` | Temporal convolution comparison |
+| `hydro_ensemble.ipynb` | Original CatBoost/LightGBM/TCN ensemble |
+| `test.ipynb` | Existing Kaggle download/setup notebook |
+| `schedule_visualization.ipynb` | Existing schedule viewer, local course resource |
+| [Experiment history](docs/experiments.md) | Results, failed trials, feature rationale and research sources for the report |
+| `tests/` | Non-fitting feature and pipeline checks |
+| `environments/` | Exact measured dependency versions |
+
+Every model notebook contains its runtime code. No separate builder, runner,
+feature helper, pretrained model or feature cache is needed to run it.
+
 ## Setup
 
 From the project root in Windows PowerShell:
@@ -8,117 +31,61 @@ uv pip install -r requirements.txt
 .\.venv\Scripts\Activate.ps1
 ```
 
-Select the project's `.venv` as the notebook kernel. Dependencies are installed by
-the user; the notebooks do not install packages or download external data.
+Select `.venv` as the notebook kernel. For the measured XGBoost-only environment,
+use `uv pip install -r environments/xgboost.txt` instead. The other model versions
+are recorded in `environments/models.txt`. The user installs dependencies and runs
+training; notebooks do not install packages or download external data.
 
-On Linux/macOS:
+The provided `data/`, `prediction_mapping.csv` and `sample_submission.csv` must be
+present locally. They and the task PDFs, supplied metric and `outputs/` are ignored
+by Git. Obtain them from the course dataset when setting up another checkout.
 
-```bash
-cp .env.example .env
-uv venv --python 3.14
-source .venv/bin/activate
-uv pip install -r requirements.txt
-```
+## Run the current model
 
-## CatBoost notebook
+Open `xgboost.ipynb`, restart the kernel and run all cells from the project root.
+It defaults to `RUN_MODE = "check"`, which checks inputs without fitting models.
 
-`catboost.ipynb` contains the complete raw-data-to-submission pipeline. It trains
-either one shared binary classifier with categorical generator identity or one
-classifier per generator, using operating inputs and weekly context. All required
-code is inside the notebook.
+| Mode | Purpose |
+|---|---|
+| `check` | Validate data, features, time alignment and mapping |
+| `smoke` | Small training test; not a final submission |
+| `validate` | Train/evaluate on purged 2020/2021 development folds |
+| `holdout` | Evaluate a frozen configuration on 2022 without early stopping |
+| `submit` | Refit all 2922 labeled cases and export 725 test-case predictions |
 
-1. Start with `RUN_MODE = "check"` and run all cells to audit data and feature alignment.
-2. Set `RUN_MODE = "smoke"`, restart the kernel, and run all cells yourself for a small
-   end-to-end training test. This is not a full-data score or a final submission.
-3. Use `RUN_MODE = "validate"` for the two development folds (2020 and 2021).
-4. Copy the configuration printed by validation into `SELECTED_CONFIG`. Use
-   `RUN_MODE = "holdout"` to evaluate that frozen configuration on 2022.
-5. Use `RUN_MODE = "submit"` to refit all labeled cases and create
-   `outputs/catboost/<run>/catboost_submission.csv` in the template's exact order.
+The selected `topology_allocation` preset and its frozen dictionary are already
+inline. Set `RUN_MODE = "submit"` to reproduce it; no configuration needs copying.
+Changing the experiment requires its own validation and matching frozen dictionary.
+CatBoost retains its earlier `submit` default; check its configuration before Run All.
+The ensemble uses `ENSEMBLE_MODE` rather than `RUN_MODE` as its main setting.
 
-Each training run records parameters, input hashes, versions, predictions, metrics,
-feature importance, and timing in a separate output directory. The user completed
-the original validation run in 21.1 minutes (micro AUC 0.946865 on 2020 and 0.976947
-on 2021) and the original submission run in 12.0 minutes. These are observations
-for the original setup, not measurements for subsequent experiments. The user owns
-installation and training.
+Selected XGBoost development micro ROC-AUC: **0.982952 in 2020 / 0.987918 in 2021**.
+These are selected validation scores, not Kaggle scores. The 19 allocation features
+come from a coarse water-balance relaxation; it is not an exact SHOP simulation.
+No observed future storage or UC labels enter those features. 2022 has prior project
+exposure and is not a wholly untouched confirmation period.
 
-### Improvement experiments
+The verified pure-XGBoost CSV is:
 
-Use the `EXPERIMENT` setting to compare presets on the same development folds:
+`outputs/xgboost/20261014T162856_740453Z_submit_topology_allocation/xgboost_submission.csv`
 
-| Preset | Features | Early-stopping metric |
-|---|---|---|
-| `baseline_auc` | Original 193 features | Per-generator AUC |
-| `probability_logloss` | Original 193 features | Logloss |
-| `upstream_logloss` | 224 features including upstream reservoirs, initial head proxies, and price windows | Logloss |
-| `shared_logloss` | Original 193 numeric features plus categorical generator identity; one shared model | Logloss |
-| `decision_logloss` | 216 features: original inputs plus economic periods and water-pressure proxies | Logloss |
-| `decision_rsm_logloss` (default) | Same 216 features; only candidate-feature sampling changes to `rsm=0.8` | Logloss |
-| `economics_logloss` | 207 features: economics group only | Logloss |
-| `water_balance_logloss` | 202 features: water-pressure group only | Logloss |
+The final refit took 14 min 1 s on four threads with peak 2.246 GiB, reusing deterministic
+preprocessing computed earlier in 229.51 s. This is not a measured fully uncached
+end-to-end benchmark. The notebook recomputes that preprocessing when run normally.
+No Kaggle score has been reported for this CSV.
 
-The user's completed `probability_logloss` run scored 0.957664 (2020) and 0.978575
-(2021); `upstream_logloss` scored 0.957444 and 0.978637. The additional features did
-not consistently improve both years. These are local validation scores.
-
-For the new `decision_logloss` experiment, run `check`, then `smoke`, then `validate`
-yourself, restarting the kernel between modes. It retains the 14 separate models,
-seed, folds and model parameters from `probability_logloss`, adding 23 features.
-The two optional ablations isolate each new group. New scores and training runtime
-are unmeasured. See [the experiment record](experiments/2026-10-09-decision-features.md)
-for definitions, saved-prediction diagnostics, limitations and measured references.
-
-The shared experiment completed in 27.4 minutes with micro AUC 0.947842 (2020) and
-0.976520 (2021), below the separate probability models on both years.
-
-Full shared training expands to 6,872,544 rows. Its raw numeric array alone needs
-about 4.94 GiB, with additional memory needed by preprocessing and CatBoost. The
-notebook quantizes each partition separately using training-derived boundaries.
-`SHARED_MAX_MATRIX_GIB` limits a raw allocation, not peak process memory. Check
-available RAM and the smoke runtime before launching full validation.
-
-`SELECTED_CONFIG` has been reset: paste the dictionary from the experiment you
-choose after validation. `EXPERIMENT` must match that dictionary in `holdout` and
-`submit` modes. The previous configuration remains available as `REFERENCE_CONFIG`;
-use it with `EXPERIMENT = "baseline_auc"` to reproduce the original approach.
-The validated probability configuration is preserved as `PROBABILITY_REFERENCE_CONFIG`;
-use it only with `EXPERIMENT = "probability_logloss"`. Existing submissions and model
-artifacts are preserved.
-
-Run the notebook from this directory with the supplied `data/`,
-`prediction_mapping.csv`, and `sample_submission.csv` present. These resources are
-ignored by Git and must be obtained from the course dataset. The notebook's default
-`check` mode never trains a model or writes a submission.
-
-`sequence_model.ipynb` remains a development scaffold. For final course submission,
-prepare two standalone short notebooks that reproduce the selected predictions
-offline from raw data within the course's runtime and hardware limits.
-
-
-### Checks without training
+## Checks without training
 
 ```powershell
-.\.venv\Scripts\python.exe tests/check_catboost_features.py
-.\.venv\Scripts\python.exe analyze_catboost_errors.py outputs/catboost/20260928T162829_635805Z_validate_probability_logloss --output outputs/catboost_diagnostics/probability_errors.csv
+.\.venv\Scripts\python.exe tests/check_xgboost_features.py
+.\.venv\Scripts\python.exe tests/check_xgboost_allocation.py
 ```
 
-The diagnostic script reads completed development predictions, verifies case alignment
-and reports generator, horizon-day, case-start-quarter and transition metrics. It
-does not read holdout predictions, fit models or write a submission. These development
-scripts are not runtime dependencies of the self-contained notebook.
+Other retained checks cover CatBoost, LightGBM and the temporal model. Checks use
+the supplied raw files and do not fit predictors. Existing notebooks and saved
+submissions were preserved during cleanup; original development scripts and notes
+are backed up under `outputs/cleanup/` (manifest in `outputs/cleanup/latest.json`).
 
-### Saved-prediction blend audit
-
-`analyze_catboost_blends.py` compares fixed blends of completed development runs
-without fitting models or reading holdout predictions. The initial audit found that
-75% separate probability predictions plus 25% shared predictions improved both
-development years. See [the measured blend analysis](experiments/2026-10-09-blend-analysis.md).
-This is an exploratory candidate requiring confirmation, not a measured Kaggle gain.
-
-The current RSM experiment is in non-training `check` mode. Run `check`, then
-`smoke`, then `validate` yourself with `EXPERIMENT = "decision_rsm_logloss"`,
-restarting the kernel between modes. Compare both years against the completed
-`decision_logloss` reference (0.966713 / 0.981636). The exact prior submission
-configuration is retained as `DECISION_REFERENCE_CONFIG`; do not reuse it for
-the new preset. New RSM training performance and runtime are unmeasured.
+The full course report, student/team metadata and two final standalone short
+notebooks still need completing. See AGENTS.md for project constraints and current
+context, and the experiment history for evidence supporting the report.
