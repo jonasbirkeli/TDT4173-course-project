@@ -13,3 +13,7 @@ __pycache__/
 /sample_submission.csv
 /schedule_visualization.ipynb
 TDT4173_Project_Submission_and_Grading.pdf
+
+# Local Python and Jupyter working files
+/.venv/
+.ipynb_checkpoints/

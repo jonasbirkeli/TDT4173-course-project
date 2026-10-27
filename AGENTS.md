@@ -1,170 +1,203 @@
 # Project instructions and working context
 
-## Communication and scope
+## Communication and authorization
 
-- Discuss the project with the user in Norwegian unless they request otherwise.
-- Write all code, comments, docstrings, notebook prose, error messages, and project documentation in English.
-- Explain modeling choices and distinguish measured results from hypotheses.
-- The user is aiming for an A and prioritizes predictive quality and rigorous experiments. Do not select a model solely because it is quick to implement, or assume a larger model is better.
-- ROC-AUC above 0.995 is the user's aspirational target, not an official grade threshold or a demonstrated achievable result. Never promise this score.
-- The user installs dependencies and runs training themselves. Add required packages to `requirements.txt`, but do not install them or start any model training unless the user explicitly changes this instruction.
-- Implement and check data processing, validation, and output mapping without fitting models. For untrained changes, state that fitting, runtime and predictive quality are unverified. Distinguish those hypotheses from completed measured runs.
+- Discuss the project in Norwegian. Write all code, comments, docstrings,
+  notebook prose, error messages and project documentation in English.
+- Explain choices and distinguish measurements from hypotheses. The user aims
+  for an A and prioritizes predictive quality and rigorous experiments. Neither
+  model size nor implementation speed alone justifies a model choice.
+- The user installs dependencies and runs training unless they explicitly
+  authorize an exception. Do not install packages or fit models without a new
+  authorization. All earlier bounded training exceptions are completed; no
+  fitting remains active. Cleanup on 2026-10-27 authorized documentation,
+  non-fitting checks and archival removal, not another training round.
+- Implement/check processing, validation and mapping without fitting when no
+  training authorization exists. State unverified runtime/quality for untrained
+  model changes. Never promise a public/private score or an AUC-based grade.
+- The user owns standalone TCN development; Jonas owns XGBoost. No ensembling
+  in the user's TCN work. Independent generator models would fill disjoint
+  columns, but the selected recipe is one jointly trained shared network.
+- Preserve user edits and existing datasets/submissions/results. Archive
+  superseded sources before removal. Do not silently overwrite submissions.
+- Do not recreate deleted `predict.py`, notebook builders, batch runners or
+  cache-generator helpers for routine use. Runtime code stays inline.
 
-## Task and authoritative local references
-
-This TDT4173 course project predicts unit commitment (ON/OFF) in the Tokke-Vinje hydropower system. Predictions are intended to assist the scheduling optimizer, not to replace the entire optimization problem.
+## Authoritative references and task
 
 Read the relevant reference before resolving uncertainty:
+`ML_Task_TDT4173.pdf`, `Dataset_definitions_and_explanation.pdf`,
+`TDT4173_Project_Submission_and_Grading.pdf`, `kaggle_metric.py` and
+`sample_submission.csv`. PDFs/metric/data are supplied ignored local resources.
 
-- `ML_Task_TDT4173.pdf`: task specification.
-- `Dataset_definitions_and_explanation.pdf`: data meanings, units, and time alignment.
-- `TDT4173_Project_Submission_and_Grading.pdf`: submission and grading rules.
-- `kaggle_metric.py`: supplied evaluation implementation.
-- `sample_submission.csv`: authoritative output column names and ordering.
+Predict hourly unit commitment (ON/OFF probabilities) for Tokke-Vinje to assist
+its scheduling optimizer. There are 17 reservoirs, 9 plants and 14 units.
+Each case starts at midnight UTC and spans 168 hours, t0-t167. Starts occur
+daily, so adjacent planning cases overlap. Output 2,352 probabilities per case,
+not production volumes or hard classes. Labels resemble
+`result_committed_Tokke_G2_t24`.
 
-There are 17 reservoirs, 9 power plants, and 14 generating units. Each scheduling case starts at midnight UTC and covers 168 hours, indexed `t0` through `t167`. A new case starts daily, so adjacent cases overlap.
+Observed generator order:
+`Hogga_G1`, `Tokke_G1`, `Tokke_G2`, `Tokke_G3`, `Tokke_G4`, `Lio_G1`,
+`Byrte_G1`, `Vinje_G1`, `Vinje_G2`, `Vinje_G3`, `Haukeli_G1`, `Songa_G1`,
+`Kjela_G1`, `Vesle Kjela_G1`. The template remains authoritative for column order.
 
-Generators, in the observed target order:
+## Data and prediction-time availability
 
-1. `Hogga_G1`
-2. `Tokke_G1`
-3. `Tokke_G2`
-4. `Tokke_G3`
-5. `Tokke_G4`
-6. `Lio_G1`
-7. `Byrte_G1`
-8. `Vinje_G1`
-9. `Vinje_G2`
-10. `Vinje_G3`
-11. `Haukeli_G1`
-12. `Songa_G1`
-13. `Kjela_G1`
-14. `Vesle Kjela_G1`
+- `data/kernel/Unit_commitment_decisions.csv`: 2,922 labeled daily starts,
+  2015-01-01 through 2022-12-31, Run No 1-2922. `Run No` and `starttime` are
+  metadata. `total_calculation_time` is optimizer output, never an input.
+- `prediction_mapping.csv`: 725 starts, 2023-01-01 through 2024-12-25,
+  Run No 2923-3647. The last horizon ends 2024-12-31 23:00 UTC.
+- `sample_submission.csv`: exact 725 x 2353 schema including Run No. Preserve
+  IDs, column order/names; validate finite probabilities in [0,1]. Placeholder
+  values are not test labels. Public/private partition is unknown; do not
+  assign 2023 to public and 2024 to private without authoritative evidence.
+- Kernel inputs: historical day-ahead prices (EUR/MWh), inflow (m3/s, 17
+  reservoirs plus one river), initial volume (million m3), synthetic marginal
+  water value (EUR/MWh). Extra input history does not provide extra UC labels.
+- Extended inputs: hourly minimum river flow for six stretches (m3/s), minimum
+  volume for Totak/Byrtevatn/Staavatn (million m3), topology YAML and map PDF.
+  Zero constraint values mean no corresponding minimum requirement.
+- For a case starting S: storage at S, price/inflow/constraints during
+  [S,S+168h), terminal water values at S+168h. January 1-7 uses January 1
+  storage and January 8 values. No observed future storage during the week.
+- Join named objects and UTC timestamps, never coincidental row positions.
+  Check uniqueness, coverage, frequency, missing values and units. The price
+  file's later 2025 section contains quarter-hour timestamps; never blindly
+  reshape the entire file as hourly.
 
-Each case requires 2352 probabilities (14 units x 168 hours), not hard classifications or production volumes. Target names look like `result_committed_Tokke_G2_t24`.
+## Evaluation and honest interpretation
 
-## Data and time alignment
+- Official metric is micro ROC-AUC over all case/unit/hour entries, including
+  cross-unit rankings. Not accuracy or an average of per-unit AUCs.
+- Split cases chronologically before expansion. Purge overlapping horizons:
+  training_start + 168 hours <= validation_start (exclusive horizon ends).
+  Fit learned preprocessing/features only on fitting cases. No held-out UC
+  labels in inputs. Scoring cases must remain within the scoring period.
+- Use comparable chronological folds, per-unit results and measured resource
+  costs. Millions of overlapping binary targets are not independent examples.
+  Overlapping absolute hours can have different decisions in different plans.
+- 2020/2021 have repeated selection exposure. 2022 has prior project exposure;
+  never call it pristine confirmation. Earlier years used for stress checks
+  also become exposed. Do not select solely by public leaderboard feedback.
+- A public target above .99350 (earlier .995) is aspirational. Private scores
+  determine the leaderboard contribution to the grade and remain unknown.
+- Approximate LP/physics features are not exact SHOP or guaranteed feasible
+  binary commitment. Input routing is not learned graph message passing;
+  subset gradients are not causal/population feature importance. Same-seed
+  deterministic refits are reproducibility checks, not seed stability.
 
-### Training and test cases
+## Canonical TCN: terminal_resolution_6h (v35)
 
-- `data/kernel/Unit_commitment_decisions.csv`: 2922 labeled cases, start dates 2015-01-01 through 2022-12-31, Run No 1 through 2922.
-- Training metadata: `Run No`, `starttime`, `total_calculation_time`. The remaining 2352 columns contain binary labels.
-- `total_calculation_time` is optimizer output, not an available prediction-time input. Do not use it as a feature.
-- `prediction_mapping.csv`: 725 test cases, start dates 2023-01-01 through 2024-12-25, Run No 2923 through 3647.
-- The final test horizon ends at 2024-12-31 23:00 UTC.
-- `sample_submission.csv`: 725 rows and 2353 columns including `Run No`. Its placeholder values are not test labels.
-- Preserve submission IDs, column names, and ordering exactly. Validate finite probabilities in [0, 1].
+`sequence_model.ipynb` now contains the recipe that the user reports scored
+**0.99261 public**, replacing the old v32 default (.99240). A subsequent
+curve-bound candidate scored .99254 and is not promoted. Scores are user
+reports, not independently retrieved. No model was fitted during cleanup.
 
-### Inputs
+- One standalone shared network, 343,034 parameters, 913 hourly/182 static
+  channels and 14 outputs. Width 64, two kernel-3 convolutions per residual
+  block, dilations 1/2/4/8/16/32/64, receptive field 509. Symmetric padding;
+  a TCN-inspired noncausal temporal CNN because all exogenous week inputs
+  are supplied. Nine width-16 plant branches receive named local/adjacent
+  hydraulic features; they learn jointly, no ensemble or reservoir embedding.
+- Actual exhaustive inventory: `docs/tcn_features.csv`, regenerated from
+  tensor names inside the notebook to `outputs/tcn_feature_catalog.csv`.
+  Neither catalog is read by model fitting. Per-group definitions and
+  parameter evidence/limitations are explained in the notebook.
+- Includes price/calendar, source-time storage/terminal values, inflow,
+  constraints, local opportunity/water context, LP allocation, projected
+  head/loss/loading, asinh/regime coordinates, duals/opportunity windows,
+  flow-deficit/bypass, river geometry/penalties and 54 binary DP scenarios.
+  No observed future storage, ordinal-count, extra curve branch or history.
+- LP has 28 six-hour blocks; all neural inputs/outputs retain 168 hours.
+  Terminal conversion uses the supplied main-waterway route, 33-point
+  initial-head best-point energy and receiving-reservoir value. The selected
+  recipe retains its approximate four-iteration efficiency inversion.
+- BCE/AdamW, lr .001, weight decay .0001, batch 32, dropout .1, gradient
+  clip 1, fitting-only asinh scaling/normalization with clip 10. Cosine schedule
+  denominator remains max_epochs=100 even for the final 22 epochs. Most
+  values are inherited heuristics, not demonstrated globally optimal.
+- Current protocol `purged-fixed-reference-resolution-v3`: validate fits fresh
+  20/42-epoch models on the same purged 2020/2021 folds (1820/360 and
+  2186/359 fitting/scoring cases). No new inner stopping. Freeze records
+  inherited 22 final epochs without fitting. Submit uses all 2922 cases.
+  Optional holdout fits 2551 cases and scores exposed 2022's 365 cases.
+- The 20/42 outer and 22 final durations came from earlier v32; do not claim
+  newly selected epochs for v35. Seed42/four neural threads; up to four LP
+  workers with one solver thread each. Patience15 is inactive in fixed fits.
+- Frozen implementation signature:
+  `9e290ce6bdaab720fabbe37115bb5a7738daa78488bd33a880b06df4a0cb9dee`.
+  Feature signature:
+  `3760ef3d550f5b4eafaae3fb08360c7edfdd96c0f6206a0145ab072aed11e618`.
+  The actual inline guard checks parameters, versions, raw hashes and functions.
+  Never transplant configuration dictionaries across implementations.
+- Known CSV:
+  `outputs/tcn_candidates_20261027_resolution/terminal_resolution_6h_submission.csv`.
+  SHA256 `7afc5ebf0daffd0a482b668f18b19bbd70f7ffe151c49f4b2db3e3c2e2231ede`.
+  Development .980920932736332/.9892533562652732. Two original fresh raw
+  refits 500.19/476.59 seconds, peak9.11GiB/four threads, identical hash.
+  During cleanup raw/scaled fixture inputs and initial logits match the
+  original portable source exactly; no new full fit/timing was performed.
+- Reproduction: change only RUN_MODE from check to submit, fresh kernel,
+  Run All with supplied raw files and `environments/tcn.txt`. No pretrained
+  artifact, cache, external source helper or download is needed at runtime.
 
-- `Historical_day_ahead_price_2015_2025.csv`: electricity prices, EUR/MWh.
-- `Historical_inflow_1958_2025.csv`: inflow to 17 reservoirs and one river, m3/s.
-- `Historical_volume_2015_2024.csv`: daily initial reservoir storage, million m3.
-- `Synthetic_water_value_2015_2024.csv`: daily synthetic marginal water values, EUR/MWh.
-- These files are in `data/kernel/` and provide inputs for both training and test dates.
-- `data/extended/Constraint_min_flow.csv`: hourly minimum flow for six river stretches, m3/s; zero means no minimum requirement.
-- `data/extended/Constraint_min_volume.csv`: hourly minimum volume for Totak, Byrtevatn, and Staavatn, million m3; zero means no minimum requirement.
-- `data/extended/Tokke_Vinje_topology.yaml`: system configuration and connections.
-- `data/extended/Tokke_topology.pdf`: system map.
+## Active files, cleanup and historical evidence
 
-For a case starting at time S, use price and inflow inputs for [S, S + 168 hours), storage at S, and terminal water values at S + 168 hours. Use constraints for the same horizon. For example, January 1-7 uses January 1 initial volumes and January 8 water values.
+- `docs/experiments_history.md` retains the complete original 5,246-line
+  chronology for the report. Preserve it; older settings and paths are historical.
+- `docs/experiments.md` is the compact historical decision record, including
+  successful/failed/partial/unfitted trials, limitations and research sources.
+  The course report and official final notebooks are NOT finished.
+- `xgboost.ipynb`, its two checks and `environments/xgboost.txt` are preserved
+  for Jonas. Its retained reference uses 14 models and 298 topology/allocation
+  features; .9829521212/.9879182383 development. No score is inferred for
+  Jonas's newer work. Another team's .99655 is an unverified user report.
+- `test.ipynb` and the ignored `schedule_visualization.ipynb` are preserved.
+  `requirements.txt` retains the user's broad development list. Pinned
+  environments capture exact measured versions; no automatic installation.
+- Cleanup on 2026-10-27 removed 19 superseded sources from the active tree:
+  13 portable TCN notebooks, CatBoost/LightGBM/ensemble notebooks, their two
+  obsolete checks and `environments/models.txt`. Their exact current bytes,
+  the old long experiment log, old instructions and previous main are in a
+  verified ZIP identified by `outputs/cleanup/latest.json`. The ignored local
+  archive is not pushed. All outputs/submissions/native evidence are retained.
+  Do not recreate these removed entry points for routine TCN work.
+- Current non-fitting check, from the repository root:
+  `.\.venv\Scripts\python.exe tests/check_sequence_pipeline.py`.
+  It blocks optimizer updates and pretrained loading, audits the actual frozen
+  recipe/catalog, timestamps, case isolation, future-storage/label invariance,
+  normalization, gradients, official metric, mapping and mocked orchestration.
+- `.venv` exists; Windows Python is `.\.venv\Scripts\python.exe`.
+  uv was previously found at `C:/Users/fredr/.local/bin/uv.exe`.
+- Dataset/PDF/metric/mapping/template and outputs are ignored. A fresh checkout
+  requires supplied course resources separately. Preserve these local files.
 
-- Join by timestamps and named objects, never by coincidental row positions.
-- Keep timestamps consistently in UTC.
-- Do not use observed future reservoir storage within the planning week as if known at the start.
-- Verify timestamp coverage, uniqueness, frequency, missing values, and units. The price file includes quarter-hour timestamps in its later 2025 section; do not assume the entire file is hourly or reshape it blindly.
-- Input history extends beyond the labeled cases; extra timestamps do not provide extra UC labels.
+## Grading and final delivery
 
-## Evaluation and leakage prevention
+The grading PDF is authoritative. An A requires 89-100 project points, based
+on instructor Virtual Teams beaten on the private leaderboard and deductions;
+there is no official fixed AUC threshold. The better of two selected private
+submissions is used. Try/document at least two predictor types (not necessarily
+both in final submissions) to avoid the specified 3-point deduction.
 
-- Official metric: micro ROC-AUC across all case/generator/hour predictions. It measures ranking, not classification accuracy.
-- Split cases chronologically before expanding them into generator-hour rows.
-- Remove training cases whose horizons overlap the validation period. With exclusive horizon ends, require `training_start + 168 hours <= validation_start`.
-- Fit preprocessing and learned features only on the training fold. Never use held-out UC labels in features.
-- Use multiple chronological development folds and reserve a final untouched period for model selection confirmation.
-- Compare candidates on the same folds and metric. Report per-generator performance and runtime as well as overall micro ROC-AUC.
-- Do not optimize decisions solely against the public Kaggle leaderboard.
-- Do not infer that the 6.9 million binary training labels are independent observations: they come from only 2922 overlapping cases.
-- A preliminary audit found agreement of about 82-96% between overlapping decisions in consecutive plans, depending on the generator. The same absolute timestamp is not necessarily the same scheduling decision across cases.
+Document at least four listed EDA activities: domain knowledge, plausibility,
+data generation, individual-feature exploration, feature-group exploration,
+cleaning. Explain feature engineering, model interpretation and hyperparameter
+selection, including unsuccessful experiments; the PDF specifies deductions.
+No external data is allowed.
 
-## Grading and reproducibility requirements
+Submit `Short notebook 1.ipynb`, `Short notebook 2.ipynb`, environment
+configuration and `Report.pdf` or `Report.ipynb`. Other files are removed before
+rerunning; both notebooks must be self-contained and fit from provided raw
+resources offline, without separate source files/pretrained artifacts. Temporary
+execution files are allowed. Specify exact dependency versions. Each notebook
+has a total 12-hour limit on a normal PC up to four CPU cores/32 GB RAM. GPU
+use needs documented model/software; no multiple GPUs or high-end assumptions.
+Leave a measured runtime margin. Add full names, student IDs and Kaggle team
+name (including group number) at the beginning of notebooks and report.
 
-The grading PDF, rather than a fixed AUC target, is authoritative:
-
-- An A requires 89-100 project points. Base points depend on the number of instructor Virtual Teams beaten on the private leaderboard, followed by applicable deductions.
-- Public leaderboard ranking does not determine the grade. The better of the two selected submissions on the private leaderboard is used.
-- Try and document at least two predictor types to avoid a 3-point deduction. Both types do not have to appear in the final submissions, and two submissions do not necessarily mean two different model families.
-- Include at least four of the listed EDA activities: domain knowledge, data plausibility, understanding data generation, individual-feature exploration, feature-group exploration, and feature cleaning.
-- Document feature engineering and model interpretation. Missing EDA, feature engineering, or interpretation each incurs a 3-point deduction under the specified rules.
-- Explain hyperparameter selection and report unsuccessful experiments as well as successful ones.
-- No external data is allowed.
-- Select two Kaggle predictions and submit two short notebooks, `Short notebook 1.ipynb` and `Short notebook 2.ipynb`, reproducing the respective predictions, plus a report (`Report.pdf` or `Report.ipynb`).
-- Final notebooks must run offline from the provided raw data. All submitted files except the two short notebooks and an environment configuration are removed before rerunning; do not depend on separate source files or pretrained artifacts.
-- Temporary files may be generated during execution. Specify dependency versions in the final configuration.
-- Each short notebook has a maximum total runtime of 12 hours, including preprocessing, training, and prediction, on a normal PC (up to 4 CPU cores and 32 GB RAM).
-- GPU use requires documenting the model and software; do not assume a high-end GPU. Multiple GPUs are not allowed.
-- Twelve hours is a ceiling, not a training target. Measure runtime and leave a safety margin.
-- Include full names, student IDs, and Kaggle team name at the beginning of notebooks and report. The Kaggle team name must include the group number.
-- Deadline stated in the PDF: November 8, 2026, 22:00 Oslo time. Consult the document for late-submission penalties and other administrative rules.
-
-## Current modeling direction and files
-
-- The latest modeling direction is XGBoost-only experimentation with physically informed features. Do not switch families or launch training merely because older notes mention another plan.
-- The user deleted `predict.py`; do not recreate it. The old seasonal reference is inlined in CatBoost. Its historical2022micro AUC was .564993; it is not a current submission.
-- All previous bounded training/installation authorizations are completed. A new run requires a new explicit user instruction; no training is currently active. The user normally installs dependencies and trains.
-- `xgboost.ipynb`: current pure-XGBoost candidate, self-contained, `check` mode, `topology_allocation`, frozen dictionary inline. Fourteen classifiers,298features, seed42, four CPU threads.
-- `catboost.ipynb`: earlier CatBoost RSM pipeline and historical controlled presets. It retains the user's existing `submit` mode; do not execute its run cell during a check without overriding the mode in memory.
-- `lightgbm.ipynb`: selected neutral-initialization classifier pipeline, check mode and frozen configuration inline.
-- `sequence_model.ipynb`: fully implemented wide TCN-inspired model, check mode. It is no longer a scaffold. Symmetric convolutions legitimately use known whole-week inputs; do not call it a strictly causal TCN.
-- `hydro_ensemble.ipynb`: independently runnable original56.25%CatBoost/18.75%LightGBM/25%TCN ensemble, check mode. These are not the later35/30/35weights.
-- `test.ipynb`: existing Kaggle download/setup notebook. `schedule_visualization.ipynb`: existing schedule viewer, reading Unit_commitment_decisions.csv. Preserve both.
-- No `report.ipynb` currently exists. `docs/experiments.md` consolidates experiment findings, unsuccessful trials, topology reasoning, sources and artifact paths for writing the report. Do not imply that the course report or final short notebooks are finished.
-- Notebook runtime code is inlined. Do not recreate deleted notebook builders, batch runners, temporary cache generators or development helpers for routine notebook use.
-- `tests/` contains the retained non-fitting feature/pipeline checks. Force check mode and block model fitting when inspecting notebooks. Tests may require the supplied ignored course files.
-- `requirements.txt` is the general setup. `environments/models.txt` and `environments/xgboost.txt` preserve exact measured package versions; do not install or upgrade packages without authorization.
-- `.venv` exists. PowerShell: `.\.venv\Scripts\python.exe`. uv was found at `C:/Users/fredr/.local/bin/uv.exe`.
-- Data, outputs, local PDFs, metric and mapping/template files are ignored by Git. A fresh checkout needs the provided course resources separately.
-
-## Frozen measured results
-
-Development uses the same purged2020/2021case folds (1820/360 and2186/359 fitting/evaluation cases).2022has prior project exposure; never describe it as wholly unseen. Learned normalization uses fitting cases only. Compare feature pipelines as pipelines rather than claiming architecture superiority from different inputs.
-
-| Candidate | 2020 micro AUC | 2021 micro AUC |
-|---|---:|---:|
-| CatBoost decision RSM | .9678485591 | .9827461050 |
-| Neutral LightGBM | .9643583 | .9833711 |
-| Wide temporal CNN | .95586145 | .96460585 |
-| Original frozen three-family blend | .9731119557 | .9853425654 |
-| Later35/30/35blend, development selection only | .9735356938 | .9856353219 |
-| XGBoost decision reference216features | .9632372220 | .9827852977 |
-| XGBoost topology descriptors279features | .9625373539 | .9823556500 |
-| Selected XGBoost topology + allocation298features | .9829521212 | .9879182383 |
-
-The user reports Kaggle .98877 for the later three_model_submission.csv; partition unspecified. No Kaggle score has been reported for the selected XGBoost CSV. Another team's .99655 is user-reported XGBoost with a mention of topology, without code; never promise replication.
-
-The original blend's frozen2022confirmation was .9837118366 versus .9811846717 for its tree reference. This result does not belong to the later35/30/35weights or to XGBoost. Development selection and independent confirmation are different.
-
-XGBoost allocation improved per-unit AUC for14/14 units in2020 and13/14 in2021; Byrte slightly declined in2021. History362features had an incomplete experiment and no complete twofold score; shape/physics/combined presets were checked but not fitted. Topology descriptors alone were weaker on both years. Record negative results honestly.
-
-## Selected XGBoost details and artifacts
-
-- Native validation: `outputs/xgboost/20261014T162530_176483Z_validate_topology_allocation`; exact frozen config and raw hashes are there and inline in the notebook. Signature: `d08f69d2d991d7e227d3f0447ac1a9b16736704ccad26fb9fd74f608aa86f4da`.
-- CPU hist128bins, depth7, lr.05, min child weight5, L2=10, row/column sampling.8, base score.5, seed42. Development Logloss stopping80, ceiling1200; no selected model reached the ceiling. Final tree budgets are integer medians across the two development folds. Structural parameters were held fixed, not demonstrated optimal.
-- Allocation features are a deterministic12hour linear-flow relaxation over the supplied reservoir/plant/river/tunnel graph. They use initial storage, known weekly price/inflow/constraints and terminal water values, never future observed storage or UC labels.
-- Projected storage is calculated from available inputs. This is not exact SHOP: no full tunnel pressure balance, changing head, spill curves, flow penalties or binary startup physics. Initial-head efficiency and local-to-global terminal-value conversions are approximate. Do not overstate physical fidelity.
-- All3647cases solved successfully in229.51s; balance, case isolation and future-volume invariance passed. Some development trials overlapped; do not treat their elapsed times as controlled speed comparisons.
-- Full refit: `outputs/xgboost/20261014T162856_740453Z_submit_topology_allocation/xgboost_submission.csv`, SHA256 `99f6132d9befa4370dabbeb395f1c8d9a02b9c3943c61919c495b3924c1078de`.
--14models refitted on all2922cases in840.91s, peak2.246GiB, four threads. This bounded refit reused deterministic raw preprocessing calculated earlier.229.51s +840.91s is a sum of stage times, not a measured uncached end-to-end run. The standalone notebook recomputes features from raw inputs.
-- Verification: exact725x2353schema/order/IDs, finite[0,1]probabilities, frozen budgets, and three fresh raw-input reconstructions within2.98e-08. Manifest: `outputs/xgboost_experiments/20261014T162851_099377Z_submit_topology_allocation/verification.json`; selection: `outputs/xgboost_development/frozen_selection.json`.
-- Original ensemble CSV: `outputs/hydro_ensemble/20261014T002236_840638Z_submit/ensemble_submission.csv`; full raw reproduction1024.27s,29models, peak2.73GiB.
-- Later user-scored CSV: `outputs/tcn_experiments/weight_audit_20261014/three_model_submission.csv`. Preserve all existing outputs; never overwrite a prior submission silently.
-
-## Repository cleanup (2026-10-19)
-
-The user requested removal of unnecessary files. Twenty-three one-off development Python scripts and the obsolete blend-helper test were removed. Fourteen experiment notes were consolidated into `docs/experiments.md`; pinned environments moved into `environments/`. Notebook contents, datasets and submissions were preserved. The old long AGENTS and removed sources have a verified ZIP backup under `outputs/cleanup/`; `outputs/cleanup/latest.json` identifies its manifest. Historical script names in the consolidated record refer to archived experiments, not current entry points.
-
-## Remaining work
-
-The user can upload the verified pure-XGBoost CSV and report the actual score. Further modeling needs a new instruction/budget. Keep model selection rigorous; do not automatically tune against public scores or reuse2022to repeatedly optimize.
-
-Write the English course report using the consolidated evidence and complete names/student IDs/group team metadata. Prepare the two independently runnable final short notebooks and exact environment configuration. The working notebooks are development artifacts, not proof that final delivery packaging is finished.
+PDF deadline: November 8, 2026, 22:00 Oslo; consult the source for penalties and
+administrative rules. Student metadata, report and official two-Short-notebook
+packaging remain unfinished. Do not imply cleanup completes those deliverables.
