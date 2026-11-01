@@ -29,6 +29,7 @@ Public scores compare whole pipelines; they do not isolate individual features.
 | October 27: terminal conversion | Change conversion of local water values using main-waterway routes and best-point energy | .99240 | Retain corrected representation of terminal opportunity cost |
 | October 27: allocation resolution | Change the LP feature generator from 12-hour to 6-hour intervals | **.99261** | Current frozen reference |
 | October 27: further physical controls | Test changing-head allocation and legal curve-bound operating descriptors | .99254 for the curve-bound export | Not promoted; keep .99261 recipe |
+| October 28: nonlinear input representation | Keep all 913/182 inputs; compare semantic input encoders with a near-capacity global encoder | **.99271 grouped / .99264 global**, reported October 29 | Grouped encoder leads public results and has more consistent locked diagnostics; private unknown |
 
 ## 1. Start by describing the decision, not just the raw inputs
 
@@ -161,7 +162,71 @@ Later changing-head, extra curve and operating-range controls did not improve
 both development years. The exported curve-bound candidate scored .99254
 publicly, so the 6-hour reference remains the canonical recipe.
 
-## What the final recipe retains
+## 8. Test whether the existing features need better nonlinear mixing
+
+The next round tested the representation rather than adding features by default.
+A schedule control and 54 new LP sensitivity channels did not improve both
+development years. Small nonlinear input encoders did: seven semantic width-16
+encoders scored **.98143331/.98947042**, and a near-capacity global width-22
+encoder scored **.98116562/.98977273**, against v35's .98092093/.98925336.
+
+Each remains one jointly trained TCN. The extra encoder mixes the existing
+hourly and static coordinates before the temporal blocks; no new data source,
+future observed storage, graph messages or ensemble is added. Width 22 was
+derived to approximately match the semantic encoders' added parameter count.
+Zero-initialized outputs preserve the reference's initial predictions exactly.
+The global variant narrowly wins the equal-year mean, while the semantic variant
+does better on 2020. Both were frozen before new exposed-2022 diagnostics;
+their private results remain unknown. See the experiment record for
+negative controls, seed checks and raw-input reproduction evidence.
+
+The later locked checks favored the semantic alternative for consistency:
+it improved both years at seed 17 too (.98088198/.99020719 against
+.98064096/.98978842) and improved exposed 2022 (.98961903 against .98925256).
+The global encoder lost both years at seed 17 and gained only slightly on 2022.
+These checks did not change the frozen seeds or epoch budgets; they distinguish
+consistent local evidence from a narrow initial mean-score win. On October 29,
+the user reported public AUC **.99271 grouped** and **.99264 global**, improvements
+of .00010 and .00003 against .99261. Grouped became the best reported TCN public
+result before the subsequent parameter round. These small gains are consistent with the diagnostics but cannot establish
+private performance. The immutable frozen sources retain their pre-feedback prose.
+
+## 9. Tune training parameters while holding the features fixed
+
+The October 29 round compared 12 initial LR/batch combinations with 22/44/66-epoch racing, followed by four local refinement settings when the short winner lay on the batch-size boundary. Longer coarse training lost 2021 AUC despite falling training loss. Matched controls use a fresh 22-epoch reference on each year, replacing the older mixed-duration comparison for this experiment. Model features and architecture are unchanged; improvements therefore concern training recipes, not additional physical data.
+
+The `candidate` export uses LR 0.00075, batch 16 and 22 epochs. The `alternative` export uses LR 0.0005, batch 8 and 22 epochs. The user subsequently reported public scores **.99333 main / .99334 alternative**, gains of .00062/.00063 over the grouped parent. Their .00001 difference does not establish private superiority. Detailed temporal/seed diagnostics and unsuccessful settings are in the experiment record; all years have prior selection exposure.
+
+The 22-epoch checkpoint was inherited as a starting budget, then retained because
+it beat the measured longer budgets (and the alternative's shorter 11-epoch
+budget). Nearby epoch counts were not exhaustively searched, so 22 is the best
+tested duration for these recipes, not a demonstrated exact optimum.
+
+## 10. Test omitted-year transfer without changing the model
+
+The fixed .99334 public recipe was evaluated with eight horizon-purged LOYO folds, one for each labeled year. Each model/scaler uses only its fitting cases, but earlier held-out years can have later-year training data. Equal-year mean micro AUC was **0.989387673**, with worst year **2020** at **0.979700929**. The pooled OOF score is a separate quantity because it compares predictions from different fitted models.
+
+This was a diagnostic, not another parameter search or a new submission. Forward/LOYO differences include training size, regime coverage, normalization and update counts at fixed epochs. The model notebooks and scored CSV remain unchanged. [The full year-validation note](validation_years.md#trained-loyo-diagnostic-on-the-99334-public-recipe) records every year, per-unit behavior, the matched forward comparison and exposure limitations.
+
+## 11. Check whether nearby training settings actually improve the reference
+
+The October 30 study kept all features and the shared network fixed. It measured
+71 distinct LR/batch/schedule/epoch recipes on matched forward 2020/2021 cases,
+including every epoch from 18 to 26 for the fine grid. A missed 25-epoch peak
+improved 2020 but lost on 2021; selecting a different epoch per scored year was
+not justified. LR .00025 / batch 4 / 22 epochs improved seed-42 AUC on all three
+years, but its matched 2021 seed-17 AUC fell from .989836348 to .989305079.
+
+Separately, shorter cosine denominators 30/40 reduced some checkpoint swings
+but did not improve the supported reference's three-year mean. Diagnostic
+eligibility for the locked denominator-40 proposal was amended after screening;
+the timing and reason are disclosed rather than presented as blind confirmation.
+No replacement passed the checks, so the .99334 public recipe and all existing
+sources/CSVs were retained. The [full local study](tcn_local_parameters_20261030.md)
+includes dense curves, all stages, counts and limitations. This supports the
+existing recipe among these alternatives, not a globally optimal epoch count.
+
+## What the scored reference retains
 
 The [feature inventory](tcn_features.csv) lists all **913 hourly + 182 static
 channels**. The final model retains raw/calendar/price context, initial storage
@@ -184,4 +249,5 @@ resolution comparison reused fixed 20/42 outer epochs and 22 final epochs.
 Repeated development-year selection and prior 2022 exposure limit independence.
 Public scores cannot establish private performance. Final submission fitting
 uses all 2,922 labeled 2015-2022 cases; no future observed storage or held-out UC
-labels enter feature construction. This summary adds no training or new results.
+labels enter feature construction. The October 28 extension above reports newly
+authorized experiments separately; it does not change the earlier public scores.

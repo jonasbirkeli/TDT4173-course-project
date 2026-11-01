@@ -2,6 +2,14 @@
 
 ## Communication and authorization
 
+- Completed bounded exception (2026-10-30): user approved up to four hours, 00:07:42-04:07:42 UTC, fitting cutoff 03:59:42. Last diagnostic completed 03:17:06.328597 UTC. Twenty primary cold trajectories plus six diagnostics measured 71 distinct recipes and 158 saved checkpoint scores (small proofs excluded). Dense epochs18-26 and nearby LR/batch candidates did not establish a supported replacement: LR.00025/b4/e22 improved all3seed42 years but lost2021seed17 by .000531269; cosine40/LR.0005/b8/e22 lost three-year mean .000023409 and seed17 .000029945. Diagnostic eligibility for the already locked cosine40 proposal was transparently amended after screening; do not call this preregistered confirmation. Retain original .99334 source/CSV and LR.0005/b8/e22/cosine100; no new all-data fit/notebook/submission, install, ensemble, upload, commit or push. All sources/CSVs/history preserved. No fitting remains active; new fitting needs new authorization. Native evidence: `outputs/tcn_development/20261030T000742Z_local_parameters/`; report/curves: `docs/tcn_local_parameters_20261030.md`.
+
+- Completed LOYO diagnostic (2026-10-29): user explicitly requested fixed-recipe CV on the .99334 alternative and resumed after pausing. Eight completed cold fits (2015-2022, LR .0005/batch 8/22 epochs/seed 42) finished 2026-10-29T12:47:46.068035+00:00, before resumed operational cap 2026-10-29T13:46:50.940027+00:00. 2022 was retained by hash, seven remaining years fitted on resume, and the partial 2020 fit archived without loading weights. Mean annual micro AUC 0.989387673; pooled OOF 0.989793683; worst year 2020 at 0.979700929. OOF 2874 cases, 48 cross-year starts excluded from scoring. 2022 predictions bitwise match the existing forward run. No tuning, installs, pretrained loading, ensemble, new submission, upload, commit or push. All sources/CSVs/history preserved. No fitting remains active; new fitting needs new authorization. Evidence: `outputs/tcn_loyo/20261029T103109Z_best_grouped/`; interpretation in `docs/validation_years.md`.
+
+- Completed bounded exception (2026-10-29): authorized 00:05:28-04:05:28 UTC; last measured fit/export 2026-10-29T03:36:49.220969+00:00. Grouped-TCN parameter search and applicable diagnostics are complete. No fitting remains active; new fitting needs new authorization. No installs, ensemble, Kaggle upload, commit or push. Evidence: `outputs/tcn_development/20261029T000528Z_hyperparameters/`.
+
+- Completed bounded exception (2026-10-28): authorized window 01:59:09-05:59:09 UTC; last fit/export completed 2026-10-28T05:14:09.636003+00:00. Seven twofold TCN trials, locked seed17/exposed-2022 diagnostics and two fresh raw reproductions per candidate are complete. No fitting remains active; new fitting needs new authorization. No installs, ensemble, Kaggle upload, commit or push. Evidence: `outputs/tcn_development/20261028T015909Z_regime_learning/`.
+
 - Discuss the project in Norwegian. Write all code, comments, docstrings,
   notebook prose, error messages and project documentation in English.
 - Explain choices and distinguish measurements from hypotheses. The user aims
@@ -142,6 +150,53 @@ reports, not independently retrieved. No model was fitted during cleanup.
 - Reproduction: change only RUN_MODE from check to submit, fresh kernel,
   Run All with supplied raw files and `environments/tcn.txt`. No pretrained
   artifact, cache, external source helper or download is needed at runtime.
+
+## October 28 TCN candidates (public feedback reported October 29)
+
+- Canonical `sequence_model.ipynb` remains the exact .99261 v35 reference.
+- New self-contained sources: `analysis/tcn_candidate_20261028.ipynb` (global
+  width22 residual input encoder, 368662 parameters) and
+  `analysis/tcn_alternative_20261028.ipynb` (seven semantic width16 input
+  encoders, 368506 parameters). Each fits one shared standalone network.
+- Both retain the exact 913/182 inventory, six-hour LP, original backbone,
+  local branches and BCE/AdamW settings. No LP sensitivity channels retained.
+  Final seed42/22epochs and cosine denominator100 remain fixed. Each source
+  contains its own frozen dictionary and strict implementation guard.
+- Initial seed42 local mean narrowly favored global (.981165623/.989772729
+  against semantic .981433309/.989470418). Choices locked before new 2022
+  results. Semantic has more consistent diagnostics: both-year seed17 gains
+  (.980881975/.990207193 vs reference .980640964/.989788417) and exposed
+  2022 .989619034 vs reference .989252559. Global loses both seed17 years,
+  with 2022 .989334884. Names reflect the initial lock, not private superiority.
+- Verified `outputs/tcn_submission_20261028.csv` SHA256 `ab2f6e8c54657a9f238e55b74f8ca9359c01ccc7a0379188d5e96c92ee014e4b`.
+- Verified `outputs/tcn_alternative_20261028.csv` SHA256 `b0ac7be382412d661c461ef4a2944f16e32d9f83bebe5b02f0f68b74bb82b04a`.
+- Two identical fresh raw refits per source; roughly eight-nine minutes,
+  9.1GiB peak main-process RSS, four neural threads. Exact reports, raw hashes,
+  source signatures and complete audits are in the round's `deliverables.json`
+  and `final_integrity.json`. Original history and sources remain unchanged.
+- The generic retained check supports `--notebook` for each source and passed
+  all three notebooks. Check mode fits nothing; runtime code remains inline.
+- User reported public .99271 for grouped/semantic and .99264 for global on
+  2026-10-29, versus reference .99261: gains .00010/.00003. Grouped became the best
+  reported TCN public result before the subsequent parameter round. Feedback is attached
+  to the CSV hashes in `leaderboard_feedback_20261029.json` under the round.
+  No source/notebook/configuration was changed or model fitted for this update;
+  immutable notebook prose still describes the pre-feedback state.
+- All years are exposed; only two seeds were checked. Private scores remain
+  unknown. No final course report or Short packaging is completed.
+
+## October 29 tuned grouped TCN candidates (subsequent public feedback)
+
+- Features/architecture stay identical to the .99271 grouped parent: 913 hourly/182 static channels, 368506 parameters, one shared network. Only training parameters change. Coarse grid 12->6->3 at 22/44/66 epochs; conditional refinement and missing seed diagnostics were time-gated. All validation years are exposed.
+- User subsequently reported public .99333 main / .99334 alternative, gains .00062/.00063 from .99271. Best reported TCN public score is now .99334; the .00001 difference does not establish private superiority. Scores were not independently retrieved. Sources/CSVs retain exact frozen bytes and pre-feedback prose; private scores remain unknown.
+- 22 was an inherited first resource rung, not a physical constant or exhaustive optimum. Main measured 22/44/66; alternative 11/22/33. Nearby 20/21/23/24 were not compared for these LR/batch recipes. Later training loss fell while validation AUC worsened; final 22 epochs transfer this selected budget to all 2922 cases rather than establishing a separate all-data optimum.
+- Main recipe narrowly wins equal-year mean; alternative wins 2020/2021 but loses 2022. Against fresh matched 22-epoch references, both improve micro AUC in all three years. This does not beat every historical 20/42 result. On 2020 only 4/14 per-unit AUCs improve; the positive micro change comes from cross-unit pair rankings, not uniform unit improvements.
+- Seed17 2021 AUC: main .989657166, alternative .989836348, reference .988702190. The alternative diagnostic was measured after export freezing and did not alter parameters/ranking/CSVs. Only two seeds and exposed years are available. Fresh raw runtimes 560.26/631.82 seconds, peak process RSS 9.11 GiB including in-process LP worker threads; 4026/8052 actual AdamW updates.
+- `analysis/tcn_tuned_20261029.ipynb`: LR 0.00075, batch 16, epochs 22; CSV `outputs/tcn_tuned_20261029.csv` SHA256 `c9b507693edc5865a792c638d40f1ab56ce14ef5023da0c54660ee6f81973795`.
+- `analysis/tcn_tuned_alternative_20261029.ipynb`: LR 0.0005, batch 8, epochs 22; CSV `outputs/tcn_tuned_alternative_20261029.csv` SHA256 `84a83f1df1206acfbb69b32c9ec831e4b12fa7c6c64affd9ac1bcac88613c693`.
+- New source protocol purged-parameter-racing-v4 uses selected equal epoch budgets on 2020/2021; exposed 2022 diagnostic is 359 starts through horizon-end 2023-01-01, not historical 365. Each source has its own strict frozen dictionary/signature; never transplant old configs. Cosine denominator 100/floor .1 and all other model settings remain fixed.
+- Retained checks and final_integrity passed; one fresh raw full fit per new source, actual 2922 fitting/725 prediction IDs and AdamW counts audited, no pretrained/cache loading. This is not two full reproducibility runs. Native results, failed initial protocol fixture, corrected continuation, skipped stages and seed limitations are recorded in the round.
+- Original v35, grouped/global parents, XGBoost, environments, all earlier CSVs and 5246-line history are preserved. Generic check derives epoch/holdout expectations from the actual selected recipe and still passes old canonical source. No report/official Short packaging completed.
 
 ## Active files, cleanup and historical evidence
 

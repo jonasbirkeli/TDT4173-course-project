@@ -1,0 +1,562 @@
+\documentclass{article}
+
+% Language setting
+\usepackage[english]{babel}
+\usepackage{siunitx}
+
+% Set page size and margins
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+% Useful packages
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+
+\title{TDT4173 Course Project}
+\author{Nymoen, Birkeli}
+
+\begin{document}
+\maketitle
+
+\noindent
+\textbf{Group:} 61 \quad \\
+\textbf{Kaggle team:} [61] Nymoen Birkeli \\
+\textbf{Members:} Fredrik Nymoen, student ID [FILL IN] \; Jonas Birkeli, 107006
+
+\begin{abstract}
+We predict unit commitment for the Tokke--Vinje hydropower system: for
+every daily scheduling case (a 168-hour week), a continuous ON-probability
+for each of 14 generators and 168 hours, graded by micro-averaged ROC-AUC.
+The labels are the output of a scheduling optimizer, so the task is to
+imitate its strategy from its own information state. We built two model
+families on a shared physical feature inventory: 14 per-generator XGBoost
+classifiers (validation micro AUC 0.9857 on 2022, public leaderboard
+0.99066) and one shared temporal convolutional network with local plant
+branches (validation micro AUC 0.9809/0.9893 on purged 2020/2021 folds,
+public leaderboard 0.99261). The report documents the full search path,
+including the negative results: closed feature-search rounds, a closed
+hyperparameter screen, and rejected model families.
+\end{abstract}
+
+\section{Introduction}
+
+Unit commitment in a hydropower cascade is a week-level regime decision
+with hourly modulation, driven by the comparison between the electricity
+price and the value of the water behind the dam. The labels come from a
+scheduling optimizer re-solved daily, so the target is a \emph{strategy},
+not a physical observation, and the same physical hour carries different
+labels in overlapping cases.
+
+Exploratory analysis showed that water state, not price level, sets the
+operating regime. We encoded that physics explicitly, price minus water
+value, water-system allocation, terminal water-value conversion and
+start/stop-cost scenarios, and fed the resulting features to two model
+families: per-generator gradient-boosted trees and a shared temporal
+convolutional network with local plant branches. We fixed a leak-free
+chronological validation protocol before comparing anything. The report
+documents what did work and what did not.
+
+\section{Task and Data}
+
+\subsection{Data}
+\textbf{Inputs.} Five input files: hourly day-ahead price (2015--2025),
+daily reservoir volumes and daily synthetic water values for 17 reservoirs
+(2015--2024), hourly per-reservoir inflow back to 1958, and the unit
+commitment decisions, 2922 daily cases (2015--2022), each with 14
+generators $\times$ 168 hours of binary labels. Extended data provides
+minimum-flow and minimum-volume constraints and a topology file mapping
+plants to their supplying reservoirs with level--volume curves.
+
+\textbf{Prediction target.} For each of the 725 hidden test cases
+(2023-01-01 to 2024-12-25), a probability in $[0,1]$ for every
+(case, hour, generator) point, 1.7M predictions per submission.
+
+\subsection{Metric}
+\label{sec:metric}
+Micro ROC-AUC pooled over all (case, hour, generator) points. This has a
+practical consequence we measured directly: per-generator rank
+normalization destroys the cross-generator score levels and collapses the
+metric (a rank ensemble scored 0.9556 vs.\ 0.9809 for a mean-probability
+ensemble), so all ensembling is done on raw probabilities.
+
+\subsection{Validation Protocol}
+One rule was used everywhere: \textbf{train on earlier years, score on
+later years, and never let the two overlap}. Each case covers a whole
+week, and the same physical hour can have different labels in different
+overlapping cases (Section~\ref{sec:intuitive}), so every training week
+must end before the scoring period begins. Any statistics the model learns
+from the data (scaling, normalization) are computed on training cases
+only.
+
+Two setups were used under this rule:
+\begin{itemize}
+    \item \textbf{Tree models:} train on 2015--2021, score on 2022. The
+    model decides when to stop training using only the last 90 days of
+    the training period, never the scoring year. An earlier version
+    stopped training by looking at the scoring year itself, which leaked
+    information and made results swing by $\pm 0.02$; fixing this was
+    worth $+0.012$ AUC (0.9686 $\to$ 0.9802). A new idea was only kept
+    if it improved the score by more than the run-to-run noise
+    ($+0.0015$; the measured noise floor is $\pm 0.0014$).
+    \item \textbf{Sequence model:} train on 2015--2019 and score on 2020,
+    then train on 2015--2020 and score on 2021, with training weeks
+    trimmed so nothing overlaps the scoring year. The number of training
+    epochs was fixed in advance. The final submission retrains on all
+    2922 cases.
+\end{itemize}
+As a stability check we also ran leave-one-year-out cross-validation:
+pooled out-of-fold micro AUC 0.9758 over all 2922 cases (the 2020
+COVID-outlier fold is the weakest at 0.9018).
+
+\section{Exploratory Data Analysis}
+\subsection{Search Domain Knowledge}
+\label{sec:domain}
+
+A hydropower generator is committed when producing electricity now is
+worth more than storing the water. The scheduling model therefore
+compares, for every hour, the \textbf{day-ahead electricity price}
+against the \textbf{water value} of each reservoir. The opportunity cost
+of releasing one more unit of water, which depends on how full the
+reservoir is and on expected future inflow and prices. This makes
+\emph{price minus water value} the natural decision variable, and it is
+provided per reservoir. Three further physical effects matter:
+\begin{itemize}
+    \item \textbf{Head}: the power produced per
+    \SI{}{\cubic\meter\per\second} grows with the height difference
+    between the reservoir surface and the turbine, so the reservoir
+    \emph{level} (not just the volume) affects how profitable a generator
+    is at a given moment.
+    \item \textbf{Cascade coupling}: the system is a chain of reservoirs
+    and plants. Water released upstream reappears in a downstream
+    reservoir, so the commitment of one plant depends on the state of the
+    reservoirs above it, not only its own.
+    \item \textbf{Constraints}: environmental minimum-flow and
+    minimum-volume rules can force generation (or spill) regardless of
+    price, decoupling commitment from the price signal for some units.
+\end{itemize}
+Inflow drives everything on longer time scales: in a wet year reservoirs
+fill, water values fall and units run even at low prices. This domain
+picture directly motivated our key feature family, price minus water
+value, and the per-plant aggregates over upstream reservoirs described in
+Section~\ref{sec:features}.
+
+\subsection{Check If The Data Is Intuitive}
+\label{sec:intuitive}
+
+Mostly yes, with two exceptions.
+\begin{itemize}
+    \item \textbf{Intuitive}: commitment is strongly sticky. Hour-to-hour
+    transition probabilities are P(on$\mid$on) 0.96--0.997 and
+    P(off$\mid$off) 0.97--0.997 per generator, with hourly flip rates of
+    only 0.3--2.2\%. Between 30\% and 80\% of case-weeks are purely
+    all-on or all-off (Haukeli 81\%): the label is mostly a week-level
+    state decision with hourly modulation. Commitment also follows the
+    expected daily and annual cycles (ON-rate by hour of day and by day
+    of year, Figure~\ref{fig:cycles}).
+    \item \textbf{Counter-intuitive at first}: ON-rate is non-monotone in
+    price. Most units are most ON in the lowest price domain. Exactly
+    what the domain picture predicts (spring flood: full reservoirs, low
+    prices, cheap water), but the opposite of a naive price-threshold
+    model. Water state dominates price level.
+    \item \textbf{Counter-intuitive at first}: the same physical hour
+    carries different labels in the (up to 7) overlapping cases that cover
+    it. The per-generator mismatch rate ranges from 4.9\% (Byrte) to
+    18.7\% (Tokke\_G2). This is consistent with how the data is generated
+    (Section~\ref{sec:generated}): each case is solved independently, so
+    the commitment of an hour depends on the case horizon. It also
+    explains why pooling predictions across overlapping cases is wrong,
+    and why the in-sample AUC ceiling is 0.9985 and not 1.0.
+\end{itemize}
+
+\subsection{Understand How the Data Was Generated}
+\label{sec:generated}
+
+The labels are not measurements of what the plants did, but rather the
+output of a short-term stochastic scheduling optimizer, re-solved
+independently for every daily case. Each solve takes the case-start
+reservoir levels, the hourly day-ahead price, hourly inflow and daily
+synthetic water values as input, and commits the 14 generators for the 168
+hours of that week. The provided inputs are therefore exactly the
+optimizer's information state, and the learning task is to imitate the
+optimizer's strategy. Two consequences we verified:
+\begin{itemize}
+    \item The water values are synthetic (model-generated, not market
+    prices), and the inflow history extends back to 1958, which allows
+    climatological baselines.
+    \item The optimizer's own difficulty varies. The per-case solve time
+    has a median of 52\,s but a mean of 147\,s and a maximum of 4526\,s, a
+    small share of cases are genuinely hard, and those are the ones where
+    the strategy is hardest to imitate.
+\end{itemize}
+
+\subsection{Explore Individual Features}
+\label{sec:individual}
+\paragraph{Price.} Hourly day-ahead price, 2015--2025, mean 59.5 EUR/MWh,
+range $-61.8$ to $898.3$. Negative prices occur in 0.44\% of hours. But,
+only 10 negative hours fall before 2023, so negative prices are
+essentially a test-period phenomenon and a real train/test distribution
+shift.
+
+\paragraph{Reservoir state and water values.} Daily volumes for 17
+reservoirs (2015--2024) and a synthetic water value per reservoir per day.
+The derived column \emph{price minus water value} is the single most
+predictive feature family: in a per-generator univariate screen
+(direction-corrected AUC), the best single column,
+\texttt{price\_minus\_val\_\_Vinjevatn}, reaches a mean AUC of 0.826
+across the 14 generators, and the entire top-20 is dominated by
+\texttt{price\_minus\_val\_\_*} and terminal-water-value columns.
+
+\paragraph{Inflow.} Hourly per-reservoir inflow back to 1958. In the
+labeled period it is genuinely hourly; in the early decades the file
+repeats daily values on the hour (Section~\ref{sec:cleanup}).
+
+\paragraph{Calendar.} ON-rate panels by hour of day, month and day of
+year show the expected daily and annual cycles, which motivates the
+sin/cos encodings of hour, day-of-week and day-of-year used in the feature
+set.
+
+\paragraph{Labels.} Strictly binary $\{0,1\}$, no missing values.
+Overall ON-rates range from $0.26$ (Vinje\_G3) to $0.75$ (Lio\_G1) and
+drift strongly by year, e.g.\ Haukeli falls from $0.87$ (2015) to $0.14$
+(2022) and Songa from $0.70$ (2020) to $0.12$ (2022). So the test years
+sit at the end of a decade-long drift, not in the middle of it.
+
+\subsection{Explore Pairs and Groups of Features}
+\label{sec:pairs}
+
+\textbf{Price vs.\ water state (the decisive pair).} Tabulating ON-rate
+per price decile per generator shows the non-monotone price response
+described above: water state, not price level, sets the operating regime.
+This is confirmed by a feature-group ablation (default XGBoost, train
+2015--2021, val 2022, micro AUC):
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrr}
+        \hline
+        Configuration & Micro AUC & $\Delta$ \\
+        \hline
+        All features & 0.9764 & --- \\
+        $-$ reservoir / water-value group & 0.9355 & $-0.0410$ \\
+        $-$ price group & 0.9729 & $-0.0035$ \\
+        $-$ calendar group & 0.9757 & $-0.0007$ \\
+        $-$ inflow group & 0.9767 & $+0.0003$ \\
+        $-$ constraints group & 0.9776 & $+0.0012$ \\
+        $-$ local aggregates & 0.9781 & $+0.0017$ \\
+        Top-10 features only & 0.9548 & $-0.0216$ \\
+        \hline
+    \end{tabular}
+    \caption{Feature-group ablation. The reservoir/water-value group
+    carries nearly all the signal; no single small set of features
+    suffices.}
+    \label{tab:ablation}
+\end{table}
+
+\textbf{Signal is spread thin.} A model restricted to the top-10
+univariate features drops to 0.9548. There is no small magic subset,
+which argues for a model class (gradient boosting) that can combine many
+weak features.
+
+\textbf{Hard units respond to context, but in opposite directions.}
+Features describing upstream water state helped Haukeli ($+0.006$) and
+Vesle Kjela ($+0.007$) but hurt Lio ($-0.003$), netting to zero at the
+pooled level. This recurring see-saw pattern across five feature rounds
+is what closed the feature search: the two hard units fail for different
+reasons (Section~\ref{sec:interpretation}).
+
+\subsection{Cleanup Features}
+\label{sec:cleanup}
+
+We checked every input file systematically:
+\begin{itemize}
+    \item \textbf{No missing values and no duplicate timestamps} in any
+    of the six input files (price, volume, water value, inflow, minimum
+    flow, minimum volume). No imputation was needed.
+    \item \textbf{Labels are strictly binary} $\{0,1\}$ with no
+    corruption; they are cast to float only for training.
+    \item \textbf{Resolution alignment}: price and inflow are hourly,
+    volumes and water values are daily. Daily values are aligned to the
+    case start, and per-hour features are looked up by timestamp. The
+    inflow file is hourly only in the modern period; before that, daily
+    values are repeated on each hour (154{,}879 consecutive identical
+    hourly rows overall vs.\ only 50 in 2015+), which matters only if
+    pre-2015 inflow is used (we use it solely as a climatology baseline,
+    where the repetition is harmless).
+    \item \textbf{Price resolution}: 15-minute prices exist only from
+    October 2025, after the test window, so hourly is the finest usable
+    resolution.
+    \item \textbf{Dropped columns}: the optimizer solve-time column
+    exists only for training cases and cannot be used as a feature; the
+    topology file is used only to derive static features
+    (plant-to-reservoir mapping, level curves), not as a data table.
+    \item No outlier removal was applied: extreme prices (up to 898
+    EUR/MWh) and negative prices are real operating conditions the model
+    must handle.
+\end{itemize}
+
+\section{Feature Engineering}
+\label{sec:features}
+
+The feature inventory is shared by both model families. For each hour of
+a case-week:
+\begin{itemize}
+    \item \textbf{Calendar} — hour of day, day of week, month, day of
+    year (as sin/cos curves), and how far into the week we are.
+    \item \textbf{Price} — the hourly price, weekly average/min/max,
+    rank of this hour within the week, averages of the first/last hours.
+    \item \textbf{Reservoir state} — how full each reservoir is at the
+    start of the week, and the water value at the end of the week.
+    \item \textbf{Price minus water value} — the key family. If
+    electricity is expensive but water is cheap to use, the generator
+    should be ON. This one family carries almost all the signal.
+    \item \textbf{Inflow} — how much water flows into each reservoir,
+    cumulative and remaining over the week.
+    \item \textbf{Constraints} — minimum flow / minimum volume rules.
+    \item \textbf{Local aggregates} — the same quantities, averaged over
+    just the reservoirs feeding this specific plant.
+    \item \textbf{LP water-system allocation} — a simplified linear
+    program routes water through the named topology and returns
+    projected plant flows, reservoir storage and marginal water costs.
+    Used by both families.
+    \item \textbf{Terminal water-value conversion} — local terminal
+    EUR/MWh values converted through best-operating-point energy at
+    initial head and downstream receiving-reservoir values.
+    \item \textbf{Start/stop-cost scenarios} — 54 binary channels
+    estimating the whole-week payoff of staying ON through a bad hour
+    (9 plants $\times$ 3 cost scales $\times$ 2 initial states).
+    \item \textbf{Asinh encoding} — extreme prices and water values are
+    squashed with asinh instead of clipped, keeping their sign and
+    magnitude information.
+\end{itemize}
+
+The feature search was run one factor at a time against a fixed anchor
+under the adoption bar. Table~\ref{tab:arms} shows the final round: each
+arm adds one feature group to the anchor configuration.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{llrr}
+        \hline
+        Arm & Added features & Val 2022 & $\Delta$ \\
+        \hline
+        anchor & v2 + 12h LP allocation & 0.9842 & --- \\
+        lp2 & LP duals + min-volume margin & 0.9840 & $-0.0002$ \\
+        margin\_ctx & profitable-run length and margins & 0.9850 & $+0.0008$ \\
+        duals & LP marginal water cost & 0.9854 & $+0.0012$ \\
+        hydraulics & tunnel submergence, spillway capacity & 0.9855 & $+0.0013$ \\
+        \textbf{minvolmargin} & projected margin to min-volume floor & \textbf{0.9857} & $+0.0015$ \\
+        \hline
+    \end{tabular}
+    \caption{Feature arms, each one factor apart from the anchor (same
+    protocol, same hyperparameters). The winning arm (minvolmargin: the
+    projected reservoir margin to the minimum-volume floor along the LP
+    storage trajectory, where the baseline only had the margin at case
+    start) reaches the adoption bar and was retrained on all 2922 cases
+    for the final submission.}
+    \label{tab:arms}
+\end{table}
+
+What never helped: more price history, inflow anomalies, or anything
+encoding the same physics a second way. The feature search was closed
+after five separate rounds of null results.
+
+\section{Models}
+
+\subsection{Gradient-Boosted Trees}
+\label{sec:xgboost}
+
+\textbf{Setup.} One XGBoost classifier per generator: 14 models, each
+trained on its own generator's labels. Each model sees
+$2{,}557 \times 168 = 429{,}576$ training rows (2015--2021 case starts)
+and is scored on $365 \times 168 = 61{,}320$ rows (2022).
+
+\textbf{Features.} 193 columns per row, dominated by the \emph{price
+minus water value} family and per-plant aggregates
+(Section~\ref{sec:features}). The feature-group ablation
+(Table~\ref{tab:ablation}) quantifies this: removing the reservoir /
+water-value group costs $0.041$ micro AUC, while no other group costs
+more than $0.004$. The final configuration adds the winning feature arm
+from Table~\ref{tab:arms}.
+
+\textbf{Hyperparameters.} Table~\ref{tab:xgbparams} lists the final
+configuration. Values were selected by a closed screen scored on the 2022
+validation year under the adoption bar: a candidate had to beat the
+incumbent by $+0.0015$ micro AUC (the measured seed-to-seed noise floor
+is $\pm 0.0014$) to be kept. Early stopping selects the number of trees
+using only the last 90 days of the training period, never the scoring
+year.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrl}
+        \hline
+        Parameter & Value & Search range \\
+        \hline
+        Learning rate & 0.05 & fixed \\
+        Max depth & 7 & $\{6, 7, 8\}$ \\
+        Min child weight & 5 & $\{5, 10\}$ \\
+        Reg lambda & 10.0 & $\{1, 10, 30\}$ \\
+        Reg alpha & 0.0 & fixed \\
+        Subsample / colsample by tree & 0.8 / 0.8 & fixed \\
+        Tree method & hist & fixed \\
+        Max trees & 400 & early stopping, 25 rounds \\
+        Eval metric & AUC & --- \\
+        Seed & 0 & --- \\
+        \hline
+    \end{tabular}
+    \caption{Final XGBoost configuration, shared by all 14 per-generator
+    models. The search column gives the values tried in the closed
+    hyperparameter screen.}
+    \label{tab:xgbparams}
+\end{table}
+
+\textbf{Ensembling.} All ensembling is done on raw probabilities: the
+rank-normalized variant collapses the metric (0.9556 vs.\ 0.9809,
+Section~\ref{sec:metric}) and was rejected. A cross-family GBDT+GBDT
+ensemble did not clear the adoption bar.
+% TODO: if the final submission averages feature-set variants, name them
+% here; the repo contains single-configuration submissions only.
+
+\textbf{Results.} Table~\ref{tab:xgbprogress} summarizes the development
+on the 2022 validation year. Leave-one-year-out cross-validation gives
+pooled out-of-fold micro AUC 0.9758 over all 2922 cases, weakest fold
+2020 at 0.9018. The selected Kaggle submission scores 0.99066 public.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrr}
+        \hline
+        Configuration & Val 2022 & Status \\
+        \hline
+        v2 baseline (193 features) & 0.9823 & reference \\
+        + 12h LP allocation & 0.9842 & adopted \\
+        + min-volume margin (final) & 0.9857 & adopted, submitted \\
+        GNN + TCN (own attempt) & 0.9794 & rejected \\
+        \hline
+    \end{tabular}
+    \caption{Development progression on the 2022 validation year. The
+    sequence-model attempt is included for completeness; it scored below
+    both tree anchors and was not adopted.}
+    \label{tab:xgbprogress}
+\end{table}
+
+\textbf{What did not work.} (i) Rank-normalized ensembling ($-0.025$).
+(ii) Cross-family GBDT+GBDT ensembling (below the adoption bar).
+(iii) Five feature-search rounds --- inflow anomalies, extended price
+history, and duplicate encodings of the same physics --- none of which
+reached $+0.0015$ on 2022.
+
+\subsection{Temporal Convolutional Network}
+\label{sec:tcn}
+
+\textbf{Setup.} One jointly trained network predicts all 14 generators at
+all 168 hours: 343{,}034 parameters, consuming 913 hourly and 182 static
+input channels. There is no ensemble and no pretrained model.
+
+\textbf{Architecture.} A width-64 temporal path sees the complete
+planning week: seven residual blocks, each with two kernel-3
+convolutions, dilations $1,2,4,8,16,32,64$, giving a receptive field of
+509 hours. Padding is symmetric (noncausal) because the complete
+exogenous week is supplied at prediction time. Nine width-16 plant
+branches receive explicitly routed local reservoir, tunnel and river
+features and return per-generator corrections; their final layers start
+at zero, so the branches can only learn to help. Everything trains
+jointly under binary cross-entropy.
+
+\textbf{Training.} AdamW (learning rate 0.001, weight decay 0.0001),
+batch size 32 cases, dropout 0.1, gradient clipping 1.0, seed 42. Inputs
+are asinh-encoded and scaled with statistics computed on fitting cases
+only (clip at 10). Training budgets are fixed in advance: 20/42 epochs
+for the two validation folds, 22 epochs for the final fit on all 2922
+cases. A full fit takes about 500 seconds and 9.1 GiB on four CPU
+threads.
+
+\textbf{Results.} On the purged 2020 and 2021 folds the network reaches
+micro AUC 0.9809 and 0.9893. The selected Kaggle submission scores
+0.99261 public. Development was feature-driven: the terminal
+water-value conversion moved the reported public score from 0.99197 to
+0.99240, and refining the LP allocation interval from 12 to 6 hours
+reached 0.99261. A matched comparison showed 6-hour intervals beat both
+12-hour and 1-hour on both folds (1-hour cases also required artificial
+storage slack in the LP).
+
+\subsection{Comparison on the Same Folds}
+\label{sec:comparison}
+
+On the purged 2020/2021 folds, the sequence model scores
+0.9809/0.9893. An earlier XGBoost generation with topology and
+allocation features (298 features) scored 0.9830/0.9879 on the same
+years: the tree model is better on 2020, the sequence model better on
+2021. Neither family dominates; the final submissions therefore carry
+one model of each family, and the private leaderboard decides.
+% TODO: the fold construction of the two rows above is documented in
+% docs/experiments.md; state any purging differences explicitly if the
+% grader may ask. A naive-baseline row would strengthen this table.
+
+\subsection{Unsuccessful Model Families}
+
+\begin{itemize}
+    \item \textbf{One pooled model for all generators} (trees): scored
+    worse than the per-generator split.
+    % TODO: insert the pooled score if recoverable, else keep qualitative.
+    \item \textbf{GNN + TCN} (own sequence attempt with graph message
+    passing): 0.9794 on val 2022, below both tree anchors (0.9823,
+    0.9842); rejected.
+    \item \textbf{Fourteen independent per-unit TCNs}: 0.9745/0.9816 on
+    the 2020/2021 folds, below the shared network (0.9749/0.9841 in the
+    same round); rejected.
+    \item \textbf{Neural graph message passing in the shared TCN}: won
+    both local years but scored lower publicly than local plant branches
+    (0.99159 vs.\ 0.99176); rejected.
+    \item \textbf{Cross-family GBDT+GBDT ensembling}: below the adoption
+    bar.
+    \item \textbf{Historical tree baselines}: CatBoost 0.9678/0.9827 and
+    LightGBM 0.9644/0.9834 on the 2020/2021 folds; superseded.
+\end{itemize}
+
+\section{Model Interpretation}
+\label{sec:interpretation}
+
+\textbf{Which features matter.} The feature-group ablation
+(Table~\ref{tab:ablation}) and the univariate screen
+(Section~\ref{sec:individual}) agree: the reservoir / water-value group
+dominates, and no small subset suffices. XGBoost's total-gain importance
+rankings per generator confirm the same ordering.
+% TODO: add the per-generator feature-importance figure (one bar panel),
+% computed from the fitted trees -- no new training needed.
+
+\textbf{Per-generator behavior.} Validation AUCs range from about 0.92
+(Lio, Haukeli) to above 0.99 (Byrte, Vesle Kjela). The hard units fail
+for different reasons: Haukeli sits at the end of a decade-long ON-rate
+drift (0.87 in 2015 to 0.14 in 2022), while Lio responds to upstream
+water context in the opposite direction of other units
+(Section~\ref{sec:pairs}).
+% TODO: add the per-unit AUC table/figure for the final configuration.
+
+\textbf{Example weeks.} Predicted ON-probabilities track the
+price-minus-water-value signal hour by hour, with the expected
+stickiness: probabilities stay high through short unfavorable hours
+rather than dropping, consistent with start/stop economics.
+% TODO: add one example-week figure (price curve + predicted
+% probabilities for 2-3 generators). Requires saved predictions.
+
+\section{Limitations}
+
+The labels come from an optimizer, not measurements, and the same
+physical hour carries different labels in overlapping cases, capping the
+achievable AUC (in-sample ceiling 0.9985). The LP water-system features
+are a simplified relaxation, not the original scheduler: they do not
+enforce binary commitment, changing-head optimization or spill behavior
+exactly. The development years were reused across many comparisons and
+are not pristine confirmation sets; 2022 in particular was scored
+repeatedly during development. Public leaderboard scores are reported for
+reproduction purposes only; grading uses the private leaderboard, whose
+ranking is unknown to us. No external data was used.
+
+\section{Use of AI}
+% TODO: describe how AI tools were used in the project.
+
+\bibliographystyle{alpha}
+\bibliography{sample}
+
+\end{document}

@@ -9,9 +9,14 @@ Jonas develops XGBoost; this branch maintains the TCN.
 | File | Purpose |
 |---|---|
 | [sequence_model.ipynb](sequence_model.ipynb) | Canonical standalone TCN; frozen `terminal_resolution_6h` recipe, user-reported public score **0.99261** |
+| [analysis/tcn_candidate_20261028.ipynb](analysis/tcn_candidate_20261028.ipynb) | Global nonlinear input encoder; user-reported public score **0.99264** |
+| [analysis/tcn_alternative_20261028.ipynb](analysis/tcn_alternative_20261028.ipynb) | Grouped semantic input encoders; parent reference, user-reported public score **0.99271** |
 | [xgboost.ipynb](xgboost.ipynb) | Pure-XGBoost pipeline; preserved for Jonas |
 | [docs/experiments.md](docs/experiments.md) | Compact experiment history, measured comparisons, failed trials and sources |
 | [docs/development_summary.md](docs/development_summary.md) | Short round-by-round story: features added, motivation, results and discarded branches |
+| [docs/validation_years.md](docs/validation_years.md) | Year-shift EDA, measured eight-fold LOYO scores and matched forward comparison |
+| [docs/tcn_local_parameters_20261030.md](docs/tcn_local_parameters_20261030.md) | Dense local epoch/LR/batch study, decay controls and rejected candidates; existing .99334 recipe retained |
+| [analysis/year_diagnostics.ipynb](analysis/year_diagnostics.ipynb) | Reproduce input/target EDA, saved-score plots and horizon-purged partition audits |
 | [docs/experiments_history.md](docs/experiments_history.md) | Complete original 5,246-line project chronology for the report |
 | [docs/tcn_features.csv](docs/tcn_features.csv) | Exhaustive **913 hourly + 182 static** feature inventory, source, formula function and availability |
 | [environments/tcn.txt](environments/tcn.txt) | Pinned measured CPU TCN environment |
@@ -23,6 +28,37 @@ The TCN notebook explains the feature groups, topology routing, network and
 parameter choices. It distinguishes measured choices from retained heuristics.
 One shared network has 343,034 parameters and 14 outputs. Nine jointly learned
 plant branches receive named local hydraulic inputs. No ensemble is used.
+
+The October 28 candidates preserve all **913 hourly / 182 static** inputs and
+add a nonlinear representation before the temporal blocks. The primary has
+368,662 parameters; the alternative has 368,506. Each is one network, with its
+own frozen configuration and all runtime code inline. The original scored
+notebook remains unchanged. See [the matched comparisons](docs/experiments.md#october-28-test-how-the-network-represents-the-existing-features)
+for selection exposure, failed controls and diagnostic limits. Either candidate
+uses the same pinned environment and RUN_MODE workflow described below.
+The grouped alternative has the more consistent locked diagnostics: gains
+against v35 on both 2020/2021 seeds and on exposed 2022. The global candidate
+loses the second-seed comparison. On October 29 the user reported public scores
+of **.99271 grouped** and **.99264 global**, against the v35 reference's .99261.
+These are small public gains; private performance remains unknown. The frozen
+notebooks retain their original pre-feedback prose and exact reproduction hashes;
+the experiment record contains the subsequent results.
+
+## October 29 tuned TCN candidates
+
+- [analysis/tcn_tuned_20261029.ipynb](analysis/tcn_tuned_20261029.ipynb): LR 0.00075, batch 16, 22 epochs; local CSV `outputs/tcn_tuned_20261029.csv`.
+- [analysis/tcn_tuned_alternative_20261029.ipynb](analysis/tcn_tuned_alternative_20261029.ipynb): LR 0.0005, batch 8, 22 epochs; local CSV `outputs/tcn_tuned_alternative_20261029.csv`.
+
+One standalone grouped network per CSV; the 913/182 input inventory and architecture remain fixed. Each notebook is self-contained and defaults to check. Its validate mode uses the selected epoch budget on both 2020/2021 folds; the 20/42 table below describes the unchanged canonical recipe. The user subsequently reported public AUC **.99333 main / .99334 alternative**; private performance remains unknown. See the experiment record for matched controls, parameter selection, failures and measured runtime. The frozen sources retain their pre-feedback prose and remain unchanged.
+
+The October 30 local study tested 71 distinct training recipes, including every
+epoch from 18 through 26 around the strongest LR/batch region and separate
+learning-rate decay controls. The batch-4 proposal improved all three years at
+seed 42 but lost the matched seed-17 check; faster decay did not improve the
+three-year mean. The existing **LR .0005 / batch 8 / 22 epochs / cosine denominator
+100** recipe and scored CSV remain unchanged. See the
+[full local study](docs/tcn_local_parameters_20261030.md) for curves, the disclosed
+protocol amendment and limits. No new submission was exported.
 
 ## Setup and reproduction
 
@@ -68,11 +104,25 @@ Two original raw-input refits reproduced that hash in 500.19 and 476.59 seconds,
 about 9.11 GiB peak RAM, four CPU threads. These are historical measurements,
 not a new training run during cleanup or a timing guarantee on other PCs.
 
+## October 28 candidate CSVs
+
+- Grouped input encoders: `outputs/tcn_alternative_20261028.csv`; source [analysis/tcn_alternative_20261028.ipynb](analysis/tcn_alternative_20261028.ipynb).
+- Global input encoder: `outputs/tcn_submission_20261028.csv`; source [analysis/tcn_candidate_20261028.ipynb](analysis/tcn_candidate_20261028.ipynb).
+
+Each CSV was reproduced by two fresh raw-input fits with identical hashes,
+four neural CPU threads and about 9.1 GiB peak main-process RSS. Exact
+timings, hashes and diagnostic limitations are in the experiment record.
+The CSVs remain ignored local outputs and must be supplied separately.
+
 ## Checks and evidence
 
 ```powershell
 .\.venv\Scripts\python.exe tests/check_sequence_pipeline.py
 ```
+
+Use `--notebook analysis/tcn_candidate_20261028.ipynb` (or the alternative's
+path) to audit that notebook instead. The retained check supports the actual
+frozen channel and parameter counts of each recipe.
 
 This check blocks optimizer updates and pretrained loading. It audits the actual
 inline frozen configuration, timestamp alignment, future-storage/label invariance,

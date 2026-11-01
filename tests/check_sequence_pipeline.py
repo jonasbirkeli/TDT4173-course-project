@@ -31,7 +31,8 @@ def load_notebook(path):
                     # A user may have selected submit in the editor. Never fit here.
                     source = re.sub(r"^RUN_MODE = .*$", 'RUN_MODE = "check"', source, flags=re.M)
                 exec(compile(source, cell.id, "exec"), ns)
-    assert ns["RUN_DIRECTORY"] is None and ns["EXPERIMENT"] == "terminal_resolution_6h"
+    assert ns["RUN_DIRECTORY"] is None
+    assert ns["MODEL_FAMILY"] == "tcn" and ns["MODEL_LAYOUT"] == "shared"
     ns["validate_frozen"](ns["SELECTED_CONFIG"])
     return ns
 
@@ -39,7 +40,8 @@ def load_notebook(path):
 def check_inputs(ns):
     cases = ns["train_cases"].iloc[[1350, 0, 2500]].copy()
     d, s, names, static_names = ns["sequence_inputs"](cases)
-    assert d.shape == (3, 168, 913) and s.shape == (3, 182)
+    hourly, static = ns["SELECTED_CONFIG"].get("input_channel_counts", [913, 182])
+    assert d.shape == (3, 168, hourly) and s.shape == (3, static)
     unlabeled = ns["prediction_metadata"](cases)
     assert not set(ns["LABELS"]) & set(unlabeled.columns)
     assert "total_calculation_time" not in unlabeled
@@ -93,7 +95,8 @@ def check_inputs(ns):
         terminal = ns["lookup"]("water_values", one.starttime + pd.Timedelta(hours=168), [reservoir])[0, 0]
         assert before_s[0, static_names.index(f"terminal_value__{reservoir}")] == terminal
     catalog = ns["feature_catalog"]
-    pd.testing.assert_frame_equal(catalog, pd.read_csv(ns["ROOT"] / "docs/tcn_features.csv"), check_dtype=False)
+    catalog_path = ns["ROOT"] / ns.get("FEATURE_CATALOG_REFERENCE", "docs/tcn_features.csv")
+    pd.testing.assert_frame_equal(catalog, pd.read_csv(catalog_path), check_dtype=False)
     assert catalog.loc[catalog.tensor == "hourly", "feature"].tolist() == names
     assert catalog.loc[catalog.tensor == "static", "feature"].tolist() == static_names
     assert catalog["feature"].is_unique and not catalog.isna().any().any()
@@ -111,7 +114,8 @@ def check_scaling_model_mapping(ns, cases, d, s):
     assert np.isfinite(scaled_s).all() and np.abs(scaled_s).max() <= 10
     ns["initialize_torch"]()
     model = ns["make_model"](ns["BASE_PARAMETERS"]).eval()
-    assert sum(p.numel() for p in model.parameters()) == 343034
+    expected_parameters = ns["SELECTED_CONFIG"].get("network_parameters", 343034)
+    assert sum(p.numel() for p in model.parameters()) == expected_parameters
     assert 1 + 4 * sum(ns["BASE_PARAMETERS"]["dilations"]) == 509
     logits = model(torch.from_numpy(scaled_d[:2]), torch.from_numpy(scaled_s[:2]))
     assert logits.shape == (2, 168, 14) and torch.isfinite(logits).all()
@@ -174,25 +178,29 @@ def check_protocol(ns):
                      "fit_and_predict": fake_fit, "save_evaluation": fake_evaluation, "RUN_MODE": "validate"}
         with patch.dict(ns, overrides), contextlib.redirect_stdout(io.StringIO()):
             folder, _ = ns["run_pipeline"]()
-            assert calls == [(1820, 360, 20), (2186, 359, 42)]
+            budgets = ns["BASE_PARAMETERS"]["fixed_resolution_budgets"]
+            assert calls == [(1820, 360, budgets[0]), (2186, 359, budgets[1])]
             ns["SELECTED_CONFIG"] = json.loads((folder / "selected_configuration.json").read_text())
             ns["RUN_MODE"] = "freeze"
             folder, _ = ns["run_pipeline"]()
             assert len(calls) == 2
             frozen = json.loads((folder / "selected_configuration.json").read_text())
-            assert frozen["epochs"] == 22
+            final_epochs = ns["BASE_PARAMETERS"]["reference_final_epochs"]
+            assert frozen["epochs"] == final_epochs
             ns["validate_frozen"](frozen)
             ns["SELECTED_CONFIG"] = frozen
             ns["RUN_MODE"] = "holdout"
             ns["run_pipeline"]()
-            assert calls[-1] == (2551, 365, 22)
+            _, _, hold_fit, hold_score = ns["partition_cases"](ns["HOLDOUT_START"], ns.get("HOLDOUT_END"))
+            assert calls[-1] == (len(hold_fit), len(hold_score), final_epochs)
             ns["RUN_MODE"] = "submit"
             folder, _ = ns["run_pipeline"]()
-            assert calls[-1] == (2922, 725, 22)
+            assert calls[-1] == (2922, 725, final_epochs)
             frame = pd.read_csv(folder / "tcn_submission.csv")
             expected = ns["assemble_predictions"](ns["test_cases"], predictions(ns["test_cases"]))
             np.testing.assert_allclose(frame, expected, rtol=1e-7, atol=1e-7)
-            for field, value in (("epochs", 23), ("feature_signature", "invalid"),
+            changed_epochs = final_epochs + 1 if final_epochs < ns["BASE_PARAMETERS"]["max_epochs"] else final_epochs - 1
+            for field, value in (("epochs", changed_epochs), ("feature_signature", "invalid"),
                                  ("implementation_signature", "invalid")):
                 bad = copy.deepcopy(frozen)
                 bad[field] = value
