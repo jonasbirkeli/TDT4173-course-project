@@ -26,7 +26,7 @@ each of 14 units and 168 planning hours. There is no ensemble.
   and development values describe that unchanged reference.
 - Development micro ROC-AUC: **0.9809209327 (2020)** and **0.9892533563 (2021)**.
 - One network, **343,034 parameters**, **913 hourly and 182 static channels**.
-- Final fit: **22 epochs on all 2,922 labeled 2015–2022 cases**.
+- Final fit: **22 epochs on all 2,922 labeled 2015â€“2022 cases**.
 - Known submission: `outputs/tcn_candidates_20261027_resolution/terminal_resolution_6h_submission.csv`.
 - Submission SHA256: `7afc5ebf0daffd0a482b668f18b19bbd70f7ffe151c49f4b2db3e3c2e2231ede`.
 
@@ -483,6 +483,61 @@ check now chooses an invalid epoch relative to the actual selected duration,
 so a legitimate future 23-epoch recipe is not mistaken for a failed guard test;
 the original canonical check passed with optimizer updates blocked.
 
+## November 1: independent per-unit LightGBM with hydraulic features
+
+The user supplied another team's screenshot describing per-unit LightGBM with
+relative margins, own-unit LP schedules, head updates and sensitivity re-solves.
+Their code was unavailable. We built an independent interpretation from the
+supplied raw data and our existing named hydraulic geometry, without loading
+TCN/XGBoost weights or blending predictions. The screenshot's exact feature
+counts and claimed rationale are not treated as reproduced evidence.
+
+| Features | 2020 micro AUC | 2021 micro AUC | Equal-year mean |
+|---|---:|---:|---:|
+| Base economics/water/topology, 279 channels | .957368804 | .983163860 | .970266332 |
+| Add 34 relative margins, 313 channels | .971702836 | .988900334 | .980301585 |
+| Add unit LP, 340 channels | .981515575 | .991824805 | .986670190 |
+| Add projected-head/sensitivity block, 361/370 channels | .984097465 | .991953689 | **.988025577** |
+| Full block, remove relative channels only for Lio | .984125272 | .991653964 | .987889618 |
+
+All four feature families use the same LightGBM learner parameters and stopping
+policy on purged 2020/2021 folds. Per-unit logloss early stopping uses each
+development year, so these are tuning estimates, not untouched test results.
+Each variant chooses its own tree budgets. This is an end-to-end feature-family
+comparison under a common tuning procedure, not causal feature importance or
+an exhaustive hyperparameter search. All development years have prior exposure.
+
+The full feature block was locked before exposed-2022 scoring, using rounded
+median development tree counts per unit (109-455, 3896 trees in total). It scored
+**.988133869** on 359 cases with fixed budgets. The retained best-public TCN
+scored **.990136901** on exactly the same 2551 fitting/359 scoring IDs. LightGBM
+therefore remains an experimental alternative; the TCN is not replaced.
+
+The screenshot's claim that relative margins are noise for Lio was not supported
+here: removing them reduced Lio's 2021 AUC from .988334731 to .983552712 and
+reduced the equal-year global micro mean. No Lio-specific removal was retained.
+
+The independent LP uses 28 six-hour blocks and 14 parallel unit discharge arcs,
+followed by one projected-head update and +/-5% terminal-value re-solves.
+Schedules and dual margins are approximate inputs, not exact SHOP solutions
+or guaranteed feasible binary commitments. Only source-time observed storage
+and supplied horizon inputs/S+168h values are used. No observed future storage,
+UC-label inputs or optimizer runtime enters a feature.
+
+One fresh all-data fit on 2922 labeled cases produced
+`outputs/lightgbm_hydraulic_20261101.csv` (725 x 2353, SHA256
+`f6bc9a0c2db660dbc6ce771ee3b5c2020f43ea31cd75eaa7ff27cf730191e830`).
+Exact schema/IDs, finite probability bounds and all complete fold scores
+were checked with the supplied metric. No Kaggle score or private improvement
+is inferred. Post-lock controls, final publication checks and limitations are
+recorded in [the detailed study](lightgbm_hydraulic_20261101.md).
+
+Source: `analysis/lightgbm_hydraulic_20261101.ipynb`; measured environment:
+`environments/lightgbm_hydraulic.txt`; native evidence:
+`outputs/lightgbm_development/20261101T141843Z_hydraulic/`. Previous sources,
+submissions and the full original history are preserved. This is experimental
+development, not completion of the course report or official Short packaging.
+
 ## How to read the evidence
 
 This is a retrospective summary, not a claim that the complete search was
@@ -500,7 +555,7 @@ needed to write the report.
 ## Data and evaluation protocol
 
 A case starts at midnight UTC and covers 168 hours. Adjacent daily cases overlap.
-The 2,922 labeled cases start in 2015–2022. The 725 test cases start on
+The 2,922 labeled cases start in 2015â€“2022. The 725 test cases start on
 2023-01-01 through 2024-12-25. The public/private partition is not established;
 do not equate 2023 with public and 2024 with private.
 
@@ -744,3 +799,29 @@ report. The separate report, student/team metadata and two official offline
 Short notebooks remain unfinished. Each final notebook has a 12-hour ceiling
 on a normal PC (up to four CPU cores and 32 GB RAM); it must fit from supplied
 raw resources without separate source helpers or pretrained artifacts.
+
+
+## November 2: LightGBM robustness search and all-year LOYO
+
+User feedback: the November 1 hydraulic CSV scored **.99322**, not independently retrieved. New net-opportunity/minimum-load/normalized switching-DP features added 34 columns; raw feature counts 395/404 versus retained 361/370. Net/DP31 improved 2021 (.993527773 vs .991953689) but lost 2020 (.982730822 vs .984097465). More leaves, regularization, histogram resolution and shorter/longer tree budgets failed the declared robustness/mean gates. The trigger/extensions were adaptive, not preregistered confirmation. Lower-bin63 was skipped for the full-LOYO time reserve and has no measured quality result.
+
+The original 31-leaf recipe was locked before fixed-budget 2018/2019 tests (.982436684/.991861063). Final per-unit counts retain the rounded median 2020/2021 stopping budgets, 3896 trees total. A fresh all-data fit took 644.95s and produced **byte-identical CSV content** to .99322: `outputs/lightgbm_net_commitment_20261102.csv`, SHA256 `f6bc9a0c2db660dbc6ce771ee3b5c2020f43ea31cd75eaa7ff27cf730191e830`. There is no improved Kaggle candidate from this round; submitting identical bytes will not produce new predictions. The new 34 features are not used by the retained variant.
+
+Eight cold fixed-recipe LOYO fits excluded every fitting horizon touching the held year and scored only complete in-year horizons. No held-year stopping or warm start; all 8 folds use the same locked budgets. Annual micro AUC:
+
+| Held year | LightGBM | Retained TCN |
+|---|---:|---:|
+|2015|.990905288|.989841487|
+|2016|.993800674|.992877718|
+|2017|.992661067|.991587756|
+|2018|.987181088|.986328212|
+|2019|.992200432|.991616129|
+|2020|.984127432|.979700929|
+|2021|.993379090|.993012253|
+|2022|.988133869|.990136901|
+
+LightGBM mean annual **.990298618**, pooled OOF **.990828693**; 2874 scoring starts, 48 cross-year starts excluded. Exact fitting/scoring IDs match TCN in all years; LightGBM wins 7/8 years, while TCN wins 2022. Earlier LOYO folds train future years; selection has exposed years, so this is conditional diagnosis rather than unbiased nested evaluation or a private-score forecast. The unchanged 2022 prediction matrix reproduces the previous fixed forward run bitwise.
+
+Source: `analysis/lightgbm_net_commitment_20261102.ipynb` (inline raw-data fitting/LOYO, default check); environment `environments/lightgbm_net_commitment.txt`; non-fitting command `.\.venv\Scripts\python.exe tests/check_lightgbm_net_commitment.py`. Independent official-metric, partition, preservation and fixed-budget audits pass. Published model-function identity is verified; there is no second full published-notebook Run All fit. All fitting and OOF aggregation completed by 05:45:54 UTC, within the six-hour authorization; resumed publication/checks fit nothing. Original sources/CSVs/history remain unchanged, with the former November 1 report archived before adding dated feedback.
+
+Full failed/successful trial table, parameter/feature rationale, resource skips, controller corrections, annual/per-unit evidence and plot: [November 2 study](lightgbm_net_commitment_20261102.md). Native evidence: `outputs/lightgbm_development/20261102T012858Z_net_commitment/`. No installs, ensembling, upload, commit or push. Final course report/official Short notebooks remain unfinished.
