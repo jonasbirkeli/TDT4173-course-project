@@ -21,19 +21,23 @@
 \noindent
 \textbf{Group:} 61 \quad \\
 \textbf{Kaggle team:} [61] Nymoen Birkeli \\
-\textbf{Members:} Fredrik Nymoen, student ID [FILL IN] \; Jonas Birkeli, 107006
+\textbf{Members:} Fredrik Nymoen, 106988 \; Jonas Birkeli, 107006
 
 \begin{abstract}
 We predict unit commitment for the Tokke--Vinje hydropower system: for
 every daily scheduling case (a 168-hour week), a continuous ON-probability
 for each of 14 generators and 168 hours, graded by micro-averaged ROC-AUC.
 The labels are the output of a scheduling optimizer, so the task is to
-imitate its strategy from its own information state. We built two model
-families on a shared physical feature inventory: 14 per-generator XGBoost
-classifiers (validation micro AUC 0.9857 on 2022, public leaderboard
-0.99066) and one shared temporal convolutional network with local plant
-branches (validation micro AUC 0.9809/0.9893 on purged 2020/2021 folds,
-public leaderboard 0.99261). The report documents the full search path,
+imitate its strategy from its own information state. We built three model
+families on a shared physical feature inventory. The two final models are
+14 per-generator LightGBM classifiers with hydraulic and LP-allocation
+features (leave-one-year-out pooled micro AUC 0.9908, public leaderboard
+0.99322) and one shared temporal convolutional network with local plant
+branches (LOYO pooled 0.9898, public leaderboard 0.99334). A classical
+XGBoost reference (LOYO pooled 0.9875, public leaderboard 0.99066) is
+documented alongside them and carries the feature-ablation analysis; the
+SHAP interpretation is computed on the final LightGBM model. The report
+documents the full search path,
 including the negative results: closed feature-search rounds, a closed
 hyperparameter screen, and rejected model families.
 \end{abstract}
@@ -50,11 +54,12 @@ labels in overlapping cases.
 Exploratory analysis showed that water state, not price level, sets the
 operating regime. We encoded that physics explicitly, price minus water
 value, water-system allocation, terminal water-value conversion and
-start/stop-cost scenarios, and fed the resulting features to two model
-families: per-generator gradient-boosted trees and a shared temporal
-convolutional network with local plant branches. We fixed a leak-free
-chronological validation protocol before comparing anything. The report
-documents what did work and what did not.
+start/stop-cost scenarios, and fed the resulting features to three model
+families: two gradient-boosted tree models (a classical XGBoost reference
+and the final LightGBM model) and a shared temporal convolutional network
+with local plant branches. We fixed a leak-free chronological validation
+protocol before comparing anything. The report documents what did work
+and what did not.
 
 \section{Task and Data}
 
@@ -90,23 +95,31 @@ only.
 
 Two setups were used under this rule:
 \begin{itemize}
-    \item \textbf{Tree models:} train on 2015--2021, score on 2022. The
-    model decides when to stop training using only the last 90 days of
-    the training period, never the scoring year. An earlier version
-    stopped training by looking at the scoring year itself, which leaked
-    information and made results swing by $\pm 0.02$; fixing this was
-    worth $+0.012$ AUC (0.9686 $\to$ 0.9802). A new idea was only kept
-    if it improved the score by more than the run-to-run noise
-    ($+0.0015$; the measured noise floor is $\pm 0.0014$).
+    \item \textbf{Tree models:} the XGBoost reference trains on
+    2015--2021 and scores on 2022. The model decides when to stop training
+    using only the last 90 days of the training period, never the scoring
+    year. An earlier version stopped training by looking at the scoring
+    year itself, which leaked information and made results swing by
+    $\pm 0.02$; fixing this was worth $+0.012$ AUC (0.9686 $\to$ 0.9802).
+    A new idea was only kept if it improved the score by more than the
+    run-to-run noise ($+0.0015$; the measured noise floor is
+    $\pm 0.0014$). The LightGBM model instead develops on the same purged
+    2020/2021 folds as the sequence model, selects per-unit tree counts
+    by early stopping on the development year, and then transfers those
+    fixed budgets everywhere else.
     \item \textbf{Sequence model:} train on 2015--2019 and score on 2020,
     then train on 2015--2020 and score on 2021, with training weeks
     trimmed so nothing overlaps the scoring year. The number of training
     epochs was fixed in advance. The final submission retrains on all
     2922 cases.
 \end{itemize}
-As a stability check we also ran leave-one-year-out cross-validation:
-pooled out-of-fold micro AUC 0.9758 over all 2922 cases (the 2020
-COVID-outlier fold is the weakest at 0.9018).
+
+As a stability check we also ran leave-one-year-out cross-validation
+(LOYO) over all eight years for every family: pooled out-of-fold micro
+AUC 0.9875 (XGBoost), 0.9898 (TCN) and 0.9908 (LightGBM), with every
+fold at 0.979 or higher (Table~\ref{tab:loyocompare}). LOYO folds for
+early years also fit on later years, so LOYO is a regime-transfer
+diagnostic that supplements, but does not replace, the forward protocol.
 
 \section{Exploratory Data Analysis}
 \subsection{Search Domain Knowledge}
@@ -168,7 +181,15 @@ Mostly yes, with two exceptions.
     and why the in-sample AUC ceiling is 0.9985 and not 1.0.
 \end{itemize}
 
-\subsection{Understand How the Data Was Generated}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/on_cycles.pdf}
+    \caption{ON-rate by hour of day and day of year, pooled over all
+    labeled cases: the expected daily and annual cycles.}
+    \label{fig:cycles}
+\end{figure}
+
+\subsection{Understand How The Data Was Generated}
 \label{sec:generated}
 
 The labels are not measurements of what the plants did, but rather the
@@ -217,18 +238,38 @@ set.
 
 \paragraph{Labels.} Strictly binary $\{0,1\}$, no missing values.
 Overall ON-rates range from $0.26$ (Vinje\_G3) to $0.75$ (Lio\_G1) and
-drift strongly by year, e.g.\ Haukeli falls from $0.87$ (2015) to $0.14$
+drift strongly by year (Figure~\ref{fig:drift}), e.g.\ Haukeli falls
+from $0.87$ (2015) to $0.14$
 (2022) and Songa from $0.70$ (2020) to $0.12$ (2022). So the test years
 sit at the end of a decade-long drift, not in the middle of it.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/onrate_drift.pdf}
+    \caption{Per-generator ON-rate by case year: a decade-long drift
+    (Haukeli falls from 0.87 in 2015 to 0.14 in 2022). The test years sit
+    at the end of this drift.}
+    \label{fig:drift}
+\end{figure}
 
 \subsection{Explore Pairs and Groups of Features}
 \label{sec:pairs}
 
 \textbf{Price vs.\ water state (the decisive pair).} Tabulating ON-rate
 per price decile per generator shows the non-monotone price response
-described above: water state, not price level, sets the operating regime.
-This is confirmed by a feature-group ablation (default XGBoost, train
+described above: water state, not price level, sets the operating
+regime (Figure~\ref{fig:decile}). This is confirmed by a feature-group
+ablation (default XGBoost, train
 2015--2021, val 2022, micro AUC):
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/price_decile_response.pdf}
+    \caption{ON-rate per day-ahead price decile for each generator: the
+    response is non-monotone, with most units most ON in the lowest
+    price decile (spring flood: full reservoirs, cheap water).}
+    \label{fig:decile}
+\end{figure}
 
 \begin{table}[h]
     \centering
@@ -297,7 +338,7 @@ We checked every input file systematically:
 \section{Feature Engineering}
 \label{sec:features}
 
-The feature inventory is shared by both model families. For each hour of
+The feature inventory is shared by all model families. For each hour of
 a case-week:
 \begin{itemize}
     \item \textbf{Calendar} — hour of day, day of week, month, day of
@@ -317,7 +358,7 @@ a case-week:
     \item \textbf{LP water-system allocation} — a simplified linear
     program routes water through the named topology and returns
     projected plant flows, reservoir storage and marginal water costs.
-    Used by both families.
+    Used by all families.
     \item \textbf{Terminal water-value conversion} — local terminal
     EUR/MWh values converted through best-operating-point energy at
     initial head and downstream receiving-reservoir values.
@@ -360,10 +401,44 @@ What never helped: more price history, inflow anomalies, or anything
 encoding the same physics a second way. The feature search was closed
 after five separate rounds of null results.
 
+The final LightGBM model adds its own hydraulic feature blocks on top of
+the shared inventory, again one block at a time under a fixed protocol
+(purged 2020/2021 folds, same learner and stopping policy throughout).
+Table~\ref{tab:lgbmfeatures} shows the measured progression.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrr}
+        \hline
+        Feature block & Features & 2020 & 2021 \\
+        \hline
+        Base topology (shared inventory) & 279 & 0.9574 & 0.9832 \\
+        $+$ relative water-value margins & 313 & 0.9717 & 0.9889 \\
+        $+$ own-unit LP schedule summaries & 340 & 0.9815 & 0.9918 \\
+        $+$ projected head \& value sensitivity & \textbf{361/370} & \textbf{0.9841} & \textbf{0.9920} \\
+        \hline
+    \end{tabular}
+    \caption{LightGBM feature-block progression (micro AUC on the purged
+    2020/2021 development folds). The relative block adds one
+    plant-local value margin per plant plus all eight plant
+    intake/receiver terminal-value differences, hourly and
+    week-averaged; the LP block adds 18 plant-LP channels and nine
+    own-unit schedule summaries; the final block adds 21 projected-head
+    and water-value-sensitivity descriptors, including LP re-solves with
+    terminal values perturbed by $\pm5\%$.}
+    \label{tab:lgbmfeatures}
+\end{table}
+
 \section{Models}
 
-\subsection{Gradient-Boosted Trees}
+\subsection{XGBoost: Classical Reference}
 \label{sec:xgboost}
+
+XGBoost is our classical gradient-boosted baseline. It is fully documented
+here because it carried the feature-group ablation
+(Table~\ref{tab:ablation}) and the feature-arm search
+(Table~\ref{tab:arms}); the two final submissions are the LightGBM and
+TCN models of the following sections.
 
 \textbf{Setup.} One XGBoost classifier per generator: 14 models, each
 trained on its own generator's labels. Each model sees
@@ -414,13 +489,14 @@ year.
 rank-normalized variant collapses the metric (0.9556 vs.\ 0.9809,
 Section~\ref{sec:metric}) and was rejected. A cross-family GBDT+GBDT
 ensemble did not clear the adoption bar.
-% TODO: if the final submission averages feature-set variants, name them
-% here; the repo contains single-configuration submissions only.
 
 \textbf{Results.} Table~\ref{tab:xgbprogress} summarizes the development
-on the 2022 validation year. Leave-one-year-out cross-validation gives
-pooled out-of-fold micro AUC 0.9758 over all 2922 cases, weakest fold
-2020 at 0.9018. The selected Kaggle submission scores 0.99066 public.
+on the 2022 validation year. Leave-one-year-out cross-validation
+(Table~\ref{tab:loyo}) gives pooled out-of-fold micro AUC 0.9875 over all
+2922 cases. The 2022 fold (0.9855) matches the fixed validation split
+(0.9857) almost exactly, confirming that the single-year score is not a
+lucky split. The weakest fold is the 2020 COVID-outlier year at 0.9791.
+The XGBoost Kaggle submission scores 0.99066 public.
 
 \begin{table}[h]
     \centering
@@ -440,65 +516,209 @@ pooled out-of-fold micro AUC 0.9758 over all 2922 cases, weakest fold
     \label{tab:xgbprogress}
 \end{table}
 
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrr}
+        \hline
+        Scored year & Micro AUC & Haukeli\_G1 & Lio\_G1 \\
+        \hline
+        2015 & 0.9877 & 0.9764 & 0.9907 \\
+        2016 & 0.9911 & 0.9957 & 0.9919 \\
+        2017 & 0.9899 & 0.9809 & 0.9990 \\
+        2018 & 0.9834 & 0.9801 & 0.9736 \\
+        2019 & 0.9902 & 0.9724 & 0.9981 \\
+        2020 & 0.9791 & 0.9534 & 0.9838 \\
+        2021 & 0.9890 & 0.9677 & 0.9822 \\
+        2022 & 0.9855 & 0.9462 & 0.9397 \\
+        \hline
+        Pooled OOF & 0.9875 & --- & --- \\
+        \hline
+    \end{tabular}
+    \caption{Leave-one-year-out cross-validation of the final XGBoost
+    configuration: train on all other years with purged week boundaries,
+    score the held-out year. Haukeli and Lio are shown because they are
+    the two hardest generators (Section~\ref{sec:interpretation}); the
+    full per-generator table is in the project repository. Haukeli and Lio
+    are the two hardest generators for this reference model.}
+    \label{tab:loyo}
+\end{table}
+
 \textbf{What did not work.} (i) Rank-normalized ensembling ($-0.025$).
 (ii) Cross-family GBDT+GBDT ensembling (below the adoption bar).
 (iii) Five feature-search rounds --- inflow anomalies, extended price
 history, and duplicate encodings of the same physics --- none of which
 reached $+0.0015$ on 2022.
 
+\subsection{LightGBM}
+\label{sec:lgbm}
+
+\textbf{Setup.} Like the XGBoost reference, one LightGBM classifier per
+generator: 14 disjoint binary models that fill separate generator columns.
+They do not average predictions, form a meta-learner or combine with any
+other model. Each hourly row contains the known context of its own
+168-hour scheduling case; run numbers are mapping metadata, never inputs.
+
+\textbf{Features.} 361 single-unit / 370 multi-unit columns per row: the
+shared inventory of Section~\ref{sec:features} plus the three hydraulic
+blocks of Table~\ref{tab:lgbmfeatures}. The core is a conservative unit
+LP over the named hydraulic topology (28 six-hour blocks, parallel
+discharge variables per unit, reservoir conservation, river minimum flows
+and soft volume bounds). A second solve updates each block's head from
+the first LP's projected storage, and two further solves perturb the
+terminal water values by $\pm5\%$ to expose sensitivity. Only case-start
+observed storage and supplied week inputs enter the LP; future storage is
+always projected, never read from the observed volume table.
+
+\textbf{Hyperparameters.} Table~\ref{tab:lgbmparams} lists the retained
+configuration. Per-unit tree counts are the rounded median of the two
+development-year early-stopping counts (109--455 trees per unit, 3896 in
+total) and are transferred unchanged to the 2022 diagnostic, the LOYO
+folds and the final all-data fit; no fit ever stops on the labels it is
+scored against. No class weighting or per-unit rank normalization is
+applied, preserving the raw probability scale used for cross-generator
+ranking.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrl}
+        \hline
+        Parameter & Value & Alternatives tried \\
+        \hline
+        Objective & binary logloss & fixed \\
+        Learning rate & 0.05 & $\{0.03, 0.05\}$ \\
+        Num leaves & 31 & $\{31, 63\}$ \\
+        Min data in leaf & 100 & $\{100, 300\}$ \\
+        Reg lambda (L2) & 10.0 & fixed \\
+        Bagging / feature fraction & 0.85 / 0.9 & fixed \\
+        Max bin & 127 & $\{63, 127, 255\}$ \\
+        Trees per unit & median stopping count & $60\%$--$120\%$ prefixes \\
+        Seed & 42 & --- \\
+        \hline
+    \end{tabular}
+    \caption{Final LightGBM configuration, shared by all 14
+    per-generator models. The right column gives the values tried in the
+    closed screens; none of the alternatives passed the annual quality
+    gate.}
+    \label{tab:lgbmparams}
+\end{table}
+
+\textbf{Results.} On the purged 2020/2021 development folds the model
+reaches micro AUC 0.9841/0.9920 (Table~\ref{tab:lgbmfeatures}); on the
+fixed-budget 2022 diagnostic, 0.9881. The eight-year LOYO
+(Table~\ref{tab:loyocompare}) gives a mean annual micro AUC of 0.9903
+and a pooled out-of-fold micro AUC of \textbf{0.9908}, the strongest of
+our three families. The final all-data fit (2922 cases) takes about 645
+seconds on four CPU threads after LP precomputation. The selected Kaggle
+submission scores 0.99322 public.
+
+\textbf{What did not work.} (i) 34 experimental net-opportunity and
+binary-switching-DP channels (unit-arc net profit, minimum-load margins,
+nine binary proxy schedules): they improved 2021 but lost more than the
+annual quality gate on 2020 (per-unit 2020 drops up to 0.0058 on
+Tokke\_G2), so the reference was retained. (ii) Larger leaves (63),
+stronger shrinkage (min-leaf 300, LR 0.03), finer/coarser histograms
+(max\_bin 255) and longer/shorter tree budgets all failed to beat the
+reference under the declared gates. (iii) Removing the 34 relative
+water-value channels for Lio only: helps 2020 marginally, hurts 2021
+three times more; rejected.
+
 \subsection{Temporal Convolutional Network}
 \label{sec:tcn}
 
 \textbf{Setup.} One jointly trained network predicts all 14 generators at
-all 168 hours: 343{,}034 parameters, consuming 913 hourly and 182 static
+all 168 hours: 368{,}506 parameters, consuming 913 hourly and 182 static
 input channels. There is no ensemble and no pretrained model.
 
-\textbf{Architecture.} A width-64 temporal path sees the complete
-planning week: seven residual blocks, each with two kernel-3
-convolutions, dilations $1,2,4,8,16,32,64$, giving a receptive field of
-509 hours. Padding is symmetric (noncausal) because the complete
-exogenous week is supplied at prediction time. Nine width-16 plant
-branches receive explicitly routed local reservoir, tunnel and river
-features and return per-generator corrections; their final layers start
-at zero, so the branches can only learn to help. Everything trains
-jointly under binary cross-entropy.
+\textbf{Architecture.} The 1{,}095 input channels are first mixed by
+seven semantic width-16 encoders (price, water state, inflow,
+constraints, LP allocation, calendar, local hydraulics); this grouped
+design beat a single global encoder of equal width (0.99271 vs.\ 0.99264
+public). A width-64 temporal path then sees the complete planning week:
+seven residual blocks, each with two kernel-3 convolutions, dilations
+$1,2,4,8,16,32,64$, giving a receptive field of 509 hours. Padding is
+symmetric (noncausal) because the complete exogenous week is supplied at
+prediction time. Nine width-16 plant branches receive explicitly routed
+local reservoir, tunnel and river features and return per-generator
+corrections; their final layers start at zero, so the branches can only
+learn to help. Everything trains jointly under binary cross-entropy.
 
-\textbf{Training.} AdamW (learning rate 0.001, weight decay 0.0001),
-batch size 32 cases, dropout 0.1, gradient clipping 1.0, seed 42. Inputs
-are asinh-encoded and scaled with statistics computed on fitting cases
-only (clip at 10). Training budgets are fixed in advance: 20/42 epochs
-for the two validation folds, 22 epochs for the final fit on all 2922
-cases. A full fit takes about 500 seconds and 9.1 GiB on four CPU
-threads.
+\textbf{Training.} AdamW (learning rate 0.0005, weight decay 0.0001),
+batch size 8 cases, cosine schedule, dropout 0.1, gradient clipping 1.0,
+seed 42. Inputs are asinh-encoded and scaled with statistics computed on
+fitting cases only (clip at 10). The training budget is fixed in advance
+at 22 epochs for every fit: the validation folds, the LOYO folds and the
+final fit on all 2922 cases all use the same budget, selected once in a
+closed screen (11/22/33 epochs; 22 won all three exposed years). A full
+fit takes about 630 seconds and 9.1 GiB on four CPU threads.
 
-\textbf{Results.} On the purged 2020 and 2021 folds the network reaches
-micro AUC 0.9809 and 0.9893. The selected Kaggle submission scores
-0.99261 public. Development was feature-driven: the terminal
-water-value conversion moved the reported public score from 0.99197 to
-0.99240, and refining the LP allocation interval from 12 to 6 hours
-reached 0.99261. A matched comparison showed 6-hour intervals beat both
-12-hour and 1-hour on both folds (1-hour cases also required artificial
-storage slack in the LP).
+\textbf{Results.} On the purged 2020 and 2021 forward folds the network
+reaches micro AUC 0.9807 and 0.9901; the exposed fixed-budget 2022
+diagnostic reaches 0.9901. The eight-year LOYO gives a mean annual micro
+AUC of 0.9894 and pooled out-of-fold 0.9898
+(Table~\ref{tab:loyocompare}). The selected Kaggle submission scores
+0.99334 public, our best reported public score. Development was
+feature-driven first, then training-driven: the terminal water-value
+conversion moved the reported public score from 0.99197 to 0.99240,
+refining the LP allocation interval from 12 to 6 hours reached 0.99261,
+the grouped semantic encoders reached 0.99271, and the final training
+parameters (LR 0.0005, batch 8, 22 epochs) reached 0.99334. A matched
+comparison showed 6-hour LP intervals beat both 12-hour and 1-hour on
+both folds (1-hour cases also required artificial storage slack in the
+LP).
 
 \subsection{Comparison on the Same Folds}
 \label{sec:comparison}
 
-On the purged 2020/2021 folds, the sequence model scores
-0.9809/0.9893. An earlier XGBoost generation with topology and
-allocation features (298 features) scored 0.9830/0.9879 on the same
-years: the tree model is better on 2020, the sequence model better on
-2021. Neither family dominates; the final submissions therefore carry
-one model of each family, and the private leaderboard decides.
-% TODO: the fold construction of the two rows above is documented in
-% docs/experiments.md; state any purging differences explicitly if the
-% grader may ask. A naive-baseline row would strengthen this table.
+Table~\ref{tab:loyocompare} compares all three families under
+leave-one-year-out cross-validation. The LightGBM and TCN columns use
+\emph{identical} fitting and scoring case sets in every year (verified by
+case ID): 2874 scoring cases whose whole 168-hour horizon lies inside the
+held-out year, with 48 year-crossing starts excluded. The XGBoost LOYO
+scores every case starting in the held-out year (2922 cases in total), a
+slightly wider convention, so its per-year numbers are indicative rather
+than ID-matched.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrr}
+        \hline
+        Held-out year & LightGBM & TCN & XGBoost \\
+        \hline
+        2015 & 0.9909 & 0.9898 & 0.9877 \\
+        2016 & 0.9938 & 0.9929 & 0.9911 \\
+        2017 & 0.9927 & 0.9916 & 0.9899 \\
+        2018 & 0.9872 & 0.9863 & 0.9834 \\
+        2019 & 0.9922 & 0.9916 & 0.9902 \\
+        2020 & 0.9841 & 0.9797 & 0.9791 \\
+        2021 & 0.9934 & 0.9930 & 0.9890 \\
+        2022 & 0.9881 & 0.9901 & 0.9855 \\
+        \hline
+        Mean annual & 0.9903 & 0.9894 & 0.9870 \\
+        Pooled OOF & 0.9908 & 0.9898 & 0.9875 \\
+        Public leaderboard & 0.99322 & 0.99334 & 0.99066 \\
+        \hline
+    \end{tabular}
+    \caption{Leave-one-year-out micro AUC per held-out year for the
+    three families. LightGBM and TCN use identical fitting/scoring case
+    IDs in all eight years; LightGBM wins seven annual comparisons, the
+    TCN wins 2022. Neither family dominates: the final submissions
+    therefore carry one model of each family, and the private leaderboard
+    decides.}
+    \label{tab:loyocompare}
+\end{table}
+
+LightGBM wins seven of the eight annual comparisons against the TCN on
+identical case sets; the TCN wins 2022, the most exposed year. The two
+families also fail differently: the TCN's weakest year is 2020 (0.9797),
+where LightGBM still reaches 0.9841, while the TCN is stronger on the
+high-price 2022 regime. This complementarity, not a single winner, is
+why both are submitted.
 
 \subsection{Unsuccessful Model Families}
 
 \begin{itemize}
     \item \textbf{One pooled model for all generators} (trees): scored
     worse than the per-generator split.
-    % TODO: insert the pooled score if recoverable, else keep qualitative.
     \item \textbf{GNN + TCN} (own sequence attempt with graph message
     passing): 0.9794 on val 2022, below both tree anchors (0.9823,
     0.9842); rejected.
@@ -510,35 +730,167 @@ one model of each family, and the private leaderboard decides.
     (0.99159 vs.\ 0.99176); rejected.
     \item \textbf{Cross-family GBDT+GBDT ensembling}: below the adoption
     bar.
+    \item \textbf{LightGBM net-opportunity/DP channels}: 34 additional
+    LP net-profit and binary-switching-DP channels improved 2021 but
+    failed the 2020 annual quality gate; rejected
+    (Section~\ref{sec:lgbm}).
     \item \textbf{Historical tree baselines}: CatBoost 0.9678/0.9827 and
-    LightGBM 0.9644/0.9834 on the 2020/2021 folds; superseded.
+    an early neutral LightGBM 0.9644/0.9834 on the 2020/2021 folds;
+    superseded. The final LightGBM model (Section~\ref{sec:lgbm}) is a
+    different construction built on the hydraulic/LP feature blocks,
+    not a retuning of this baseline.
 \end{itemize}
 
 \section{Model Interpretation}
 \label{sec:interpretation}
 
-\textbf{Which features matter.} The feature-group ablation
-(Table~\ref{tab:ablation}) and the univariate screen
-(Section~\ref{sec:individual}) agree: the reservoir / water-value group
-dominates, and no small subset suffices. XGBoost's total-gain importance
-rankings per generator confirm the same ordering.
-% TODO: add the per-generator feature-importance figure (one bar panel),
-% computed from the fitted trees -- no new training needed.
+\subsection{SHAP Attribution}
+\label{sec:shap}
 
-\textbf{Per-generator behavior.} Validation AUCs range from about 0.92
-(Lio, Haukeli) to above 0.99 (Byrte, Vesle Kjela). The hard units fail
-for different reasons: Haukeli sits at the end of a decade-long ON-rate
-drift (0.87 in 2015 to 0.14 in 2022), while Lio responds to upstream
-water context in the opposite direction of other units
-(Section~\ref{sec:pairs}).
-% TODO: add the per-unit AUC table/figure for the final configuration.
+The ablation (Table~\ref{tab:ablation}) measures what happens when a
+feature family is removed. To answer the complementary question, what
+does the fitted model actually read, we computed exact TreeSHAP values
+for all 14 per-generator LightGBM classifiers on every 2022 validation
+row (359 cases $\times$ 168 hours $= 60{,}372$ rows per model), using
+LightGBM's native \texttt{pred\_contrib} implementation. The models were
+refitted with the frozen configuration and protocol (purged 2015--2021
+fitting cases, fixed per-unit tree budgets, seed 42) and reproduce the
+locked 2022 diagnostic exactly (micro AUC 0.988133869), so the
+attribution describes the submitted model. SHAP decomposes each
+prediction into additive log-odds contributions per feature; we report
+the mean absolute contribution.
 
-\textbf{Example weeks.} Predicted ON-probabilities track the
-price-minus-water-value signal hour by hour, with the expected
-stickiness: probabilities stay high through short unfavorable hours
-rather than dropping, consistent with start/stop economics.
-% TODO: add one example-week figure (price curve + predicted
-% probabilities for 2-3 generators). Requires saved predictions.
+Pooled over the 14 generators, the LP allocation family carries 44.4\%
+of the total attribution, economic context (profitable-run streaks and
+margin windows) 14.0\%, the price family 11.8\%, relative water-value
+margins 9.1\%, the raw reservoir / water-value columns 8.2\%, inflow
+4.0\%, topology descriptors 3.9\%, local aggregates 1.6\%, calendar
+1.6\%, constraints 1.0\% and water context 0.5\%
+(Figure~\ref{fig:shapheatmap}). The strongest single columns are
+\texttt{lp\_plant\_margin\_\_Tokke} (the LP's projected margin of the
+Tokke plant), \texttt{lp\_own\_plant\_on\_week\_mean} and
+\texttt{lp\_head\_own\_week\_mean} (the unit's own projected LP
+schedule), \texttt{price\_minus\_week\_mean}, and
+\texttt{economic\_positive\_streak\_margin\_sum}
+(Figure~\ref{fig:shapbar}).
+
+The per-generator breakdown explains the see-saw pattern that closed
+the feature search (Section~\ref{sec:pairs}): the hard units read
+different things. Haukeli takes 74.9\% of its attribution from the LP
+allocation family, its strongest column being the head-corrected own-LP
+weekly mean; Vesle Kjela takes 51.0\% from the economic context; Lio
+draws its largest single contribution from the normalized economic
+margin, followed by the \texttt{price\_minus\_value\_\_Byrtevatn} column
+--- the same Byrtevatn margin the XGBoost reference singled out; and
+Vinje\_G3 splits its reading between the LP block (44.9\%) and the price
+family (20.0\%), led by \texttt{price\_minus\_week\_mean}.
+
+\textbf{Attribution is not irreplaceability.} The raw reservoir /
+water-value columns hold only 8.2\% of the attribution although they
+carry the same physics whose removal collapsed the XGBoost reference
+(Table~\ref{tab:ablation}): the LP block re-encodes the water state
+jointly with price, head and topology, so the trees read the compressed
+LP columns instead of the raw ones. Removal and attribution agree on the
+headline for this model --- the LP block is both the most-used (44.4\%)
+and the most irreplaceable family (dropping it from the relative-margin
+variant costs 0.010/0.003 micro AUC on the 2020/2021 folds,
+Table~\ref{tab:lgbmfeatures}) --- but the low share of the raw columns is
+a reminder that SHAP distributes credit among correlated encodings of
+the same physics; it does not identify which encoding is causally
+necessary.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/shap_lgbm_group_heatmap.pdf}
+    \caption{SHAP attribution by feature family: each row is one
+    per-generator LightGBM model, each cell the family's share of that
+    model's total mean $|$SHAP$|$ on the 2022 validation year.}
+    \label{fig:shapheatmap}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/shap_lgbm_top_features.pdf}
+    \caption{Top-8 features by mean $|$SHAP$|$ for each of the 14
+    per-generator LightGBM models (2022 validation rows).}
+    \label{fig:shapbar}
+\end{figure}
+
+\subsection{The Margin Drives the Response}
+\label{sec:dependence}
+
+The domain picture (Section~\ref{sec:domain}) predicts that ON
+probability increases with price minus water value. Verified directly on
+the fitted model: binning all 2022 validation hours by plant-local
+margin quintile, the mean predicted ON probability rises strongly from
+the lowest to the highest quintile for the three hardest units, from
+0.045 to 0.338 (Haukeli), 0.275 to 0.999 (Lio) and 0.026 to 0.570
+(Vinje\_G3), with small non-monotone dips inside the intermediate
+quintiles for Haukeli and Lio. Figure~\ref{fig:shapdep} shows the
+corresponding SHAP dependence for the local margin feature: its
+attribution increases with the margin, modulated by how full the intake
+reservoirs are.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/shap_lgbm_dependence.pdf}
+    \caption{SHAP dependence of the plant-local price-minus-water-value
+    feature for the three hardest generators (6{,}000 sampled 2022
+    validation hours each), colored by intake storage fraction.}
+    \label{fig:shapdep}
+\end{figure}
+
+\subsection{Per-Generator Behavior}
+
+Table~\ref{tab:perunit} lists the per-generator validation AUC of the
+final LightGBM configuration on the 2022 holdout. The spread is large:
+0.9601 (Haukeli) to 0.9991 (Byrte). The three hardest units fail for
+different reasons: Haukeli sits at the end of a decade-long ON-rate
+drift (0.87 in 2015 to 0.14 in 2022) and its attribution is dominated by
+the LP schedule; Lio responds to upstream water context in the opposite
+direction of other units (Section~\ref{sec:pairs}) and reads the
+Byrtevatn margin; Vinje\_G3, the unit with the lowest overall ON-rate,
+splits its reading between price and LP columns.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrlr}
+        \hline
+        Generator & AUC & Generator & AUC \\
+        \hline
+        Byrte\_G1 & 0.9991 & Songa\_G1 & 0.9945 \\
+        Haukeli\_G1 & 0.9601 & Tokke\_G1 & 0.9960 \\
+        Hogga\_G1 & 0.9818 & Tokke\_G2 & 0.9921 \\
+        Kjela\_G1 & 0.9867 & Tokke\_G3 & 0.9957 \\
+        Lio\_G1 & 0.9619 & Tokke\_G4 & 0.9935 \\
+        Vesle Kjela\_G1 & 0.9933 & Vinje\_G1 & 0.9880 \\
+        Vinje\_G2 & 0.9838 & Vinje\_G3 & 0.9708 \\
+        \hline
+    \end{tabular}
+    \caption{Per-generator validation AUC (2022) of the final LightGBM
+    configuration, from the same refit that reproduces the 0.98813
+    locked diagnostic.}
+    \label{tab:perunit}
+\end{table}
+
+\subsection{Example Week}
+
+Figure~\ref{fig:week} shows one 2022 validation case (Run No 2667,
+starting 2022-04-20): the day-ahead price against the predicted ON
+probabilities and true labels of the three hardest generators. The
+predictions track the price-minus-water-value signal hour by hour, with
+the expected stickiness: probabilities stay high through short
+unfavorable hours rather than dropping, consistent with start/stop
+economics.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/example_week_lgbm.pdf}
+    \caption{One 2022 validation week: day-ahead price (top) and
+    predicted LightGBM ON probabilities with true labels (bottom) for
+    the three hardest generators.}
+    \label{fig:week}
+\end{figure}
 
 \section{Limitations}
 
@@ -549,7 +901,9 @@ are a simplified relaxation, not the original scheduler: they do not
 enforce binary commitment, changing-head optimization or spill behavior
 exactly. The development years were reused across many comparisons and
 are not pristine confirmation sets; 2022 in particular was scored
-repeatedly during development. Public leaderboard scores are reported for
+repeatedly during development, and the LOYO folds for early years fit on
+later labeled years, so LOYO is a regime-transfer diagnostic rather than
+chronological forecasting. Public leaderboard scores are reported for
 reproduction purposes only; grading uses the private leaderboard, whose
 ranking is unknown to us. No external data was used.
 
