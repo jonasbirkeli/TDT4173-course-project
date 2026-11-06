@@ -267,3 +267,36 @@ name (including group number) at the beginning of notebooks and report.
 PDF deadline: November 8, 2026, 22:00 Oslo; consult the source for penalties and
 administrative rules. Student metadata, report and official two-Short-notebook
 packaging remain unfinished. Do not imply cleanup completes those deliverables.
+
+## Report structure (working plan, agreed 2026-10-27)
+
+Agreed section order for the report. This is a plan, not finished content;
+the report itself remains unwritten.
+
+1. Dataset analysis. Cover the PDF's EDA activities explicitly and label
+   them (domain knowledge, plausibility, data generation, individual-feature
+   exploration, feature-group exploration, cleaning) to avoid deductions.
+2. Data structuring and cleaning. Justify choices (e.g. trimming irrelevant
+   inflow history) by leakage/relevance/compute, not just by trimming.
+3. Model comparison. Use out-of-sample AUC on purged chronological folds
+   (TCN vs XGBoost vs naive baseline, same folds). Never in-sample AUC;
+   it is overfit and methodologically wrong for justification.
+4. Training/validation schemes (LOYO, fixed 2022 holdout, ...). Purge
+   overlapping 168h horizons at every split; 2022 has prior exposure and is
+   not pristine confirmation.
+5. Feature engineering, presented as ONE unified feature inventory for the
+   team (not per-person): price minus water value, per-plant aggregates,
+   calendar, constraints, LP water-system allocation, terminal best-point
+   water-value conversion, binary start/stop-cost scenarios, asinh encoding,
+   local hydraulic routing. Catalogs: `docs/tcn_features.csv`,
+   `docs/tcn_overview.ipynb`.
+6. Feature ablation across the unified inventory. Prefer cheap tree-model
+   ablations and reuse the documented success/failure history in
+   `docs/experiments.md` instead of refitting expensive variants.
+7. Model interpretation and limitations (per-unit results, example weeks,
+   LP-vs-SHOP approximation, exposed development years, public/private
+   unknown).
+
+Iteration is time-boxed inside steps 5-6; freeze models early because the
+deadline is November 8 and the report, student/team metadata and the two
+self-contained Short notebooks are still unfinished.
